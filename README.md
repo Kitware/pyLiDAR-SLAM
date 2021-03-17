@@ -1,14 +1,16 @@
 # pyLiDAR-SLAM
 
-This is a work realised in the context of my PhD thesis at [Kitware](https://www.kitware.fr/equipe-vision-par-odinateur/) 
-and Mines ParisTech.
-Its intention is to propose modular light python and [pytorch](https://pytorch.org/) implementations of several LiDAR Odometry methods, 
+This codebase proposes modular light python and pytorch implementations of several LiDAR Odometry methods, 
 which can easily be evaluated and compared on a set of public Datasets.
 
 It heavily relies on [omegaconf](https://omegaconf.readthedocs.io/en/2.0_branch/) and [hydra](https://hydra.cc/), 
 which allows us to easily test the different modules and parameters with few but structured configuration files.
 
-This is a research project, and thus is likely to be heavily extended, rewritten (and hopefully improved) in a near future. 
+
+This is a research project provided "as-is" without garanties, 
+use at your own risk. It is actively used for internal research thus is likely to be heavily extended, 
+rewritten (and hopefully improved) in a near future.
+
 
 
 ## Overview of methods currently implemented
