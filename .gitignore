@@ -1,0 +1,14 @@
+# untrack .* hidden folders
+.*
+
+# ommit git files from this rule
+!.gitignore
+!.gitmodules
+
+# Define a rule to hide specific folder and files
+__*
+# Ommit __init__.py (s) from this rule
+!__init__.py
+
+# ignore cached compiled python  
+*__pycache__*

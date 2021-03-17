@@ -1,0 +1,13 @@
+# @package _group_
+dataset: ford_campus
+root_dir: ${env:FORD_ROOT}
+
+train_sequences: ["dataset-1", "dataset-2"]
+test_sequences: []
+eval_sequences: []
+
+lidar_height: 64
+lidar_width: 720
+up_fov: 3
+down_fov: -24
+

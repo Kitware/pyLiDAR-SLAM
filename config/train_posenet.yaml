@@ -1,0 +1,9 @@
+train_dir: ${env:TRAIN_DIR}
+sequence_len: 2
+num_input_channels: 3
+
+defaults:
+  - dataset: kitti
+  - training/loss: unsupervised
+  - training/prediction: poseresnet18
+  - hydra/output: training

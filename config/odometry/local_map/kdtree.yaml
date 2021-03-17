@@ -1,0 +1,5 @@
+# @package _group_
+type: kdtree_local_map
+local_map_size: 20
+
+

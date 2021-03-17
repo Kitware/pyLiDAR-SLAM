@@ -1,0 +1,23 @@
+num_workers: 4 # The number of workers to load the data
+device: cpu # The device for the main pytorch computations
+
+dataset:
+  with_numpy_pc: true # Whether to add numpy_pc in the data_dict
+
+odometry:
+  algorithm: "icp_F2M"
+  max_num_alignments: 100
+  device: cpu
+
+  local_map: ??? # config of the local map : see odometry/local_map  (default : kdtree)
+  initialization:  ??? # config of the initialization : see odometry/initialization (default : CV)
+  alignment: ??? # config of the rigid alignment : see odometry/alignment
+
+defaults:
+  - odometry/local_map: kdtree
+  - odometry/initialization: CV
+  - odometry/alignment: point_to_plane_GN
+  - dataset: kitti
+  - hydra/output: slam
+
+

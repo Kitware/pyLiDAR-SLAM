@@ -1,0 +1,12 @@
+# torch==1.7.1 => Only tested on pytorch 1.7.1
+
+# hydra-core => should iln
+omegaconf
+pykdtree
+matplotlib
+tqdm
+pandas
+scipy
+tensorboard
+
+# cv2 -- Optional : not having OpenCV installed will deactivate some functionalities

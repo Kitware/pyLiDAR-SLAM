@@ -1,0 +1,14 @@
+# @package _group_
+dataset: nclt
+root_dir: ${env:NCLT_ROOT}
+
+train_sequences: ["2012-01-08"]
+test_sequences: []
+eval_sequences: []
+
+# LiDAR Spherical projection configuration
+lidar_height:  40
+lidar_width:  720
+up_fov:  30.0
+down_fov:  -5.0
+

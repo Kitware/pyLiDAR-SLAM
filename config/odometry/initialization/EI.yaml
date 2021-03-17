@@ -1,0 +1,6 @@
+# @package _group_
+type: ei
+debug: false
+ni_if_failure: false
+registration_config:
+  z_min: 0

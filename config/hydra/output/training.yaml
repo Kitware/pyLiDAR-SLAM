@@ -1,0 +1,7 @@
+# @package hydra
+
+run:
+  dir: .outputs/.training/${env:JOB_NAME}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+sweep:
+  dir: .outputs/slam_sweep/${now:%Y-%m-%d}_${now:%H-%M-%S}/${env:JOB_NAME}
+  subdir: ${hydra.job.num}

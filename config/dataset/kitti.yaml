@@ -1,0 +1,10 @@
+# @package _group_
+dataset: kitti
+kitti_sequence_dir: ${env:KITTI_ODOM_ROOT}
+lidar_height: 64
+lidar_width: 720
+up_fov: 3
+down_fov: -24
+train_sequences: [ "00", "01", "02", "03", "04", "05", "06", "07", "08"]
+test_sequences: ["09", "10"]
+eval_sequences: ["09", "10"]

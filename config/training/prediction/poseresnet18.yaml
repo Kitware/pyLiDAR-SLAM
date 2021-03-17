@@ -1,0 +1,7 @@
+# @package _group_
+sequence_len: ???
+num_input_channels: ???
+
+posenet_config:
+  type: poseresnet
+  model: 18

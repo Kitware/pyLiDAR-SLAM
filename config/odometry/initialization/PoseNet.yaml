@@ -1,0 +1,6 @@
+# @package _group_
+type: posenet
+train_dir: ${env:TRAIN_DIR}
+
+prediction: ???
+

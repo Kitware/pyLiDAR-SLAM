@@ -1,0 +1,14 @@
+num_workers: 4 # The number of workers to load the data
+device: cpu # The device for the main pytorch computations
+
+odometry:
+  algorithm: posenet
+  checkpoint_file: checkpoint.ckp
+  train_config_file: config.yaml
+  train_dir: ${env:TRAIN_DIR}
+  posenet_config: ???
+
+defaults:
+  - dataset: kitti
+  - hydra/output: slam
+
