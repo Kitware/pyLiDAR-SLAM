@@ -40,7 +40,7 @@ rewritten (and hopefully improved) in a near future.
 
 Clone the project:
 ```bash 
-git clone https://github.com/pierdell/pyLIDAR-SLAM
+git clone https://gitlab.kitware.com/keu-computervision/pylidar-slam
 ```
 Install [pytorch](https://pytorch.org/get-started/previous-versions/) and [hydra](https://hydra.cc/docs/intro).
 
