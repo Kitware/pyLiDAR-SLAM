@@ -100,7 +100,7 @@ class _HuberScheme(_WLSScheme):
 # ----------------------------------------------------------------------------------------------------------------------
 class _ExponentialScheme(_WLSScheme):
     """
-    The Weighting cost function
+    Exponentially Weighted Cost function quickly kills residuals larger than `sigma`
     """
 
     def __init__(self, sigma: float = 0.5, **kwargs):
@@ -109,11 +109,39 @@ class _ExponentialScheme(_WLSScheme):
 
     def cost(self, residuals: torch.Tensor, sigma: Optional[float] = None, **kwargs) -> torch.Tensor:
         """
-        The Standard cost associated to the residuals
+        Returns the weighted squared residuals
         """
         if sigma is None:
             sigma = self._sigma
-        cost = residuals.abs() * torch.exp(- residuals ** 2 / sigma ** 2)
+        cost = (residuals * residuals) * torch.exp(- residuals ** 2 / sigma ** 2)
+        return cost
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+class _NeighborhoodScheme(_WLSScheme):
+    """
+    Residuals are weighted by the confidence in the neighborhood association which led to the residual
+
+    The confidence is given by the weights : $w(r) = exp (- ||q - p||^2_2 / sigma^2)$
+    """
+
+    def __init__(self, sigma: float = 0.5, **kwargs):
+        super().__init__(**kwargs)
+        self._sigma = sigma
+
+    def cost(self, residuals: torch.Tensor, sigma: Optional[float] = None,
+             target_points: Optional[torch.Tensor] = None,
+             ref_points: Optional[torch.Tensor] = None, **kwargs) -> torch.Tensor:
+        """
+        Returns the weighted squared residuals
+        """
+        if sigma is None:
+            sigma = self._sigma
+        assert_debug(target_points is not None and ref_points is not None)
+        check_sizes(target_points, [residuals.shape[0], residuals.shape[1], 3])
+        check_sizes(ref_points, [residuals.shape[0], residuals.shape[1], 3])
+        weights = torch.exp(- (target_points - ref_points).norm(dim=-1, keepdim=True) ** 2 / sigma ** 2)
+        cost = residuals * residuals * weights
         return cost
 
 
@@ -128,7 +156,9 @@ class _GemanMcClure(_WLSScheme):
         self._sigma = sigma
 
     def cost(self, residuals: torch.Tensor, sigma: Optional[float] = None, **kwargs) -> torch.Tensor:
-        """The cost"""
+        """
+        Returns the weighted squared residuals
+        """
         if sigma is None:
             sigma = self._sigma
         res2 = residuals ** 2
@@ -142,6 +172,7 @@ class _LS_SCHEME(Enum):
     least_square = _LeastSquareScheme
     huber = _HuberScheme
     exp = _ExponentialScheme
+    neighborhood = _NeighborhoodScheme
     geman_mcclure = _GemanMcClure
 
     @staticmethod
