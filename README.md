@@ -253,6 +253,22 @@ python run.py dataset=nclt
 | --- | --- | --- |
 | Ubuntu 18.04  | 10.2   | 1.7.1    |
 
+### Author
+This is a work realised in the context of Pierre Dellenbach PhD thesis under supervision of Bastien Jacquet ([Kitware](https://www.kitware.fr/equipe-vision-par-odinateur/)), 
+Jean-Emmanuel Deschaud & François Goulette (Mines ParisTech).
+
+
 ### Cite
 
-*TODO*
+If you use this work for your research, consider citing:
+
+```
+@misc{dellenbach2021s,
+      title={What's in My LiDAR Odometry Toolbox?},
+      author={Pierre Dellenbach, 
+      Jean-Emmanuel Deschaud, 
+      Bastien Jacquet,
+      François Goulette},
+      year={2021},
+}
+```
