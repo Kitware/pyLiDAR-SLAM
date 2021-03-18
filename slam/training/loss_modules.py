@@ -97,7 +97,7 @@ class _PointToPlaneLossModule(nn.Module):
 
         residuals = mask * ((pc_reference - pc_transformed) * normal_reference).sum(dim=-1).abs()
 
-        cost = self._ls_scheme.cost(residuals)
+        cost = self._ls_scheme.cost(residuals, target_points=pc_transformed, reference_points=pc_reference)
         loss_icp = ((cost * cost).sum(dim=1) / mask.sum(dim=1)).mean()
 
         return loss_icp

@@ -113,10 +113,14 @@ class GaussNewtonPointToPlaneAlignment(RigidAlignment):
             initial_estimate = self.pose.from_pose_matrix(initial_estimate)
 
         res_func = PointToPlaneCost.get_residual_fun(tgt_points, ref_points,
-                                                     ref_normals, pose=self.pose, mask=mask, **kwargs)
+                                                     ref_normals, pose=self.pose, mask=mask,
+                                                     **kwargs)
         jac_func = PointToPlaneCost.get_residual_jac_fun(tgt_points, ref_points,
                                                          ref_normals, pose=self.pose, mask=mask, **kwargs)
-        new_pose_params, residuals = self.gauss_newton.compute(initial_estimate, res_func, jac_func, **kwargs)
+        new_pose_params, residuals = self.gauss_newton.compute(initial_estimate, res_func, jac_func,
+                                                               # Pass the pointclouds for some weighting schemes
+                                                               target_points=tgt_points, reference_points=ref_points,
+                                                               **kwargs)
 
         return new_pose_params, residuals
 

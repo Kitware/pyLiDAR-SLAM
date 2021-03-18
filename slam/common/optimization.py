@@ -47,7 +47,7 @@ class _WLSScheme(ABC):
         Returns the Attenuation Factor used to define the weighted least square
         """
         clamped_residuals = residuals.abs().clamp(self.eps, float("inf"))
-        return self.cost(residuals).sqrt() / clamped_residuals
+        return self.cost(residuals, **kwargs).sqrt() / clamped_residuals
 
     @abstractmethod
     def cost(self, residuals: torch.Tensor, **kwargs) -> torch.Tensor:
@@ -131,16 +131,16 @@ class _NeighborhoodScheme(_WLSScheme):
 
     def cost(self, residuals: torch.Tensor, sigma: Optional[float] = None,
              target_points: Optional[torch.Tensor] = None,
-             ref_points: Optional[torch.Tensor] = None, **kwargs) -> torch.Tensor:
+             reference_points: Optional[torch.Tensor] = None, **kwargs) -> torch.Tensor:
         """
         Returns the weighted squared residuals
         """
         if sigma is None:
             sigma = self._sigma
-        assert_debug(target_points is not None and ref_points is not None)
+        assert_debug(target_points is not None and reference_points is not None)
         check_sizes(target_points, [residuals.shape[0], residuals.shape[1], 3])
-        check_sizes(ref_points, [residuals.shape[0], residuals.shape[1], 3])
-        weights = torch.exp(- (target_points - ref_points).norm(dim=-1, keepdim=True) ** 2 / sigma ** 2)
+        check_sizes(reference_points, [residuals.shape[0], residuals.shape[1], 3])
+        weights = torch.exp(- (target_points - reference_points).norm(dim=-1) ** 2 / sigma ** 2)
         cost = residuals * residuals * weights
         return cost
 
@@ -276,7 +276,7 @@ class GaussNewton(LeastSquare):
         for _ in range(num_iters):
             J: torch.Tensor = jac_fun(x.detach())
             res: torch.Tensor = res_fun(x)
-            weights: torch.Tensor = self._ls_scheme.weights(res.detach())
+            weights: torch.Tensor = self._ls_scheme.weights(res.detach(), **kwargs)
             res *= weights
             J *= weights.unsqueeze(-1)
 
@@ -394,7 +394,9 @@ class PointToPlaneCost:
                                                       ref_normals,
                                                       self.pose,
                                                       mask)(pose_params)
-        weights = self.ls_scheme.weights(residuals.detach().abs())
+        weights = self.ls_scheme.weights(residuals.detach().abs(),
+                                         target_points=target_points,
+                                         ref_points=ref_points)
         return weights * residuals
 
     def loss(self, target_points: torch.Tensor, pose_params: torch.Tensor,
