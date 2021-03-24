@@ -9,6 +9,7 @@ from slam.odometry.alignment import RigidAlignmentConfig, RIGID_ALIGNMENT, Rigid
 from slam.odometry.initialization import InitializationConfig, INITIALIZATION, Initialization
 from slam.odometry.odometry import *
 from slam.odometry.local_map import LOCAL_MAP, LocalMapConfig, LocalMap
+from slam.odometry.preprocessing import PreprocessingConfig, Preprocessing
 from slam.viz.color_map import *
 
 
@@ -22,6 +23,9 @@ class ICPFrameToModelConfig(OdometryConfig):
     device: str = "cpu"
     pose: str = "euler"
     max_num_alignments: int = 100
+
+    # Config for the preprocessing layer
+    preprocessing: PreprocessingConfig = MISSING
 
     # Config for the Initialization
     initialization: InitializationConfig = MISSING
@@ -59,6 +63,9 @@ class ICPFrameToModel(OdometryAlgorithm):
 
         # --------------------------------
         # Loads Components from the Config
+
+        self._preprocessing: Preprocessing = Preprocessing(config.preprocessing, device=self.device)
+
         self._motion_model: Initialization = INITIALIZATION.load(self.config.initialization,
                                                                  pose=self.pose, device=device)
         self.local_map: LocalMap = LOCAL_MAP.load(self.config.local_map,
@@ -66,6 +73,8 @@ class ICPFrameToModel(OdometryAlgorithm):
 
         self.config.alignment.pose = self.pose.pose_type
         self.rigid_alignment: RigidAlignment = RIGID_ALIGNMENT.load(self.config.alignment, pose=self.pose)
+
+        # self._post_processing:
 
         # -----------------------
         # Optimization Parameters
@@ -103,6 +112,9 @@ class ICPFrameToModel(OdometryAlgorithm):
             data_dict (dict): The input frame to be processed.
                               The key 'self.config.data_key' is required
         """
+        # Launch the preprocessing steps
+        self._preprocessing.forward(data_dict)
+
         # Reads the input frame
         self._read_input(data_dict)
 
@@ -222,7 +234,7 @@ class ICPFrameToModel(OdometryAlgorithm):
             else:
                 assert_debug(len(data.shape) == 2)
                 pc_data = data.to(self.device)
-                vertex_map = self.projector.build_projection_map(pc_data)
+                vertex_map = self.projector.build_projection_map(pc_data.unsqueeze(0))
         else:
             raise RuntimeError(f"Could not interpret the data: {data} as a pointcloud tensor")
 

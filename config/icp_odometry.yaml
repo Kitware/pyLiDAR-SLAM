@@ -9,14 +9,19 @@ odometry:
   max_num_alignments: 100
   device: cpu
 
+  data_key: input_data # The pointcloud on which the ICP is performed
+
   local_map: ??? # config of the local map : see odometry/local_map  (default : kdtree)
   initialization:  ??? # config of the initialization : see odometry/initialization (default : CV)
   alignment: ??? # config of the rigid alignment : see odometry/alignment
+  preprocessing:
+    filters: ??? # config for the preprocessing filters see odometry/preprocessing
 
 defaults:
   - odometry/local_map: kdtree
   - odometry/initialization: CV
   - odometry/alignment: point_to_plane_GN
+  - odometry/preprocessing/filters: voxelization
   - dataset: kitti
   - hydra/output: slam
 
