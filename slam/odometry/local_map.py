@@ -277,8 +277,8 @@ class KdTreeLocalMap(LocalMap):
         num_elements = 0
 
         if new_pc_data is not None:
-            check_sizes(new_pc_data, [-1, 3])
-            numpy_pc = new_pc_data.cpu().numpy()
+            check_sizes(new_pc_data, [1, -1, 3])
+            numpy_pc = new_pc_data[0].cpu().numpy()
         elif new_vertex_map is not None:
             check_sizes(new_vertex_map, [1, 3, -1, -1])
             _, _, h, w = new_vertex_map.shape
