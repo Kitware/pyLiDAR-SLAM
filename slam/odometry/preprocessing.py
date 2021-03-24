@@ -159,7 +159,7 @@ class PreprocessingConfig:
 
 # -- Hydra add default configurations
 cs = ConfigStore.instance()
-cs.store(group="odometry/preprocessing/filters", name="none", node=dict(filters={}))
+cs.store(group="odometry/preprocessing/filters", name="none", node=dict())
 
 
 # ----------------------------------------------------------------------------------------------------------------------

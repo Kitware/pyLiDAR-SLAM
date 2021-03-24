@@ -209,7 +209,8 @@ class ICPFrameToModel(OdometryAlgorithm):
 
     def _read_input(self, data_dict: dict):
         """Reads and interprets the input from the data_dict"""
-        assert_debug(self.config.data_key in data_dict)
+        assert_debug(self.config.data_key in data_dict,
+                     f"Could not find {self.config.data_key} in the input dictionary")
         data = data_dict[self.config.data_key]
 
         self._tgt_vmap = None
@@ -218,7 +219,7 @@ class ICPFrameToModel(OdometryAlgorithm):
             check_sizes(data, [-1, 3])
             pc_data = torch.from_numpy(data).to(self.device).unsqueeze(0)
             # Project into a spherical image
-            vertex_map = self.projector.build_projection_map(pc_data.unsqueeze(0))
+            vertex_map = self.projector.build_projection_map(pc_data)
         elif isinstance(data, torch.Tensor):
             if len(data.shape) == 3 or len(data.shape) == 4:
                 # Cast the data tensor as a vertex map
@@ -233,8 +234,8 @@ class ICPFrameToModel(OdometryAlgorithm):
 
             else:
                 assert_debug(len(data.shape) == 2)
-                pc_data = data.to(self.device)
-                vertex_map = self.projector.build_projection_map(pc_data.unsqueeze(0))
+                pc_data = data.to(self.device).unsqueeze(0)
+                vertex_map = self.projector.build_projection_map(pc_data)
         else:
             raise RuntimeError(f"Could not interpret the data: {data} as a pointcloud tensor")
 
