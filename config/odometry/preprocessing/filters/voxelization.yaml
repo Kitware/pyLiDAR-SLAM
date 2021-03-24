@@ -1,0 +1,13 @@
+# @package _group_
+
+"1":
+  filter_name: voxelization
+  voxel_x_size: 0.3
+  voxel_y_size: 0.3
+  voxel_z_size: 0.3
+
+"2":
+  filter_name: to_tensor
+  keys:
+    voxel_means: input_data
+    voxel_covariances: input_covariances
