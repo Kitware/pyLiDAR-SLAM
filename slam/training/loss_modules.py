@@ -201,6 +201,9 @@ class SupervisedLossConfig(LossConfig):
     with_exp_weights: bool = False
     init_weights: List[float] = field(default_factory=lambda: [-3.0, -3.0])
 
+    # Loss option (l1, l2)
+    loss_option: str = "l2"
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Supervised Loss Module
@@ -221,16 +224,19 @@ class _PoseSupervisionLossModule(nn.Module):
         if self.config.with_exp_weights:
             self.exp_weighting = ExponentialWeights(2, self.config.init_weights)
         else:
-            self.weights = self.get("loss_weights", default_value=[1.0, 1.0])
+            self.weights = self.config.loss_weights
             assert_debug(len(self.weights) == 2)
-        loss = self.get("loss", str, default_value="l2")
+        loss = self.config.loss_option
 
         assert_debug(loss in ["l1", "l2"])
         self.loss_config = loss
 
+    def __l1(self, x, gt_x):
+        return (x - gt_x).abs().sum(dim=1).mean()
+
     def __loss(self, x, gt_x):
         if self.loss_config == "l1":
-            return (x - gt_x).abs().sum(dim=1).mean()
+            return self.__l1(x, gt_x)
         elif self.loss_config == "l2":
             return ((x - gt_x) * (x - gt_x)).sum(dim=1).mean()
         else:

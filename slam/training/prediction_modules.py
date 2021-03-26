@@ -52,8 +52,8 @@ class _PoseNetPredictionModule(nn.Module):
         data_dict["pose_params"] = pose_params
         data_dict["pose_matrix"] = self.pose.build_pose_matrix(pose_params)
 
-        if "gt_absolute_pose" in data_dict:
-            gt = data_dict["gt_absolute_pose"]
+        if "absolute_pose_gt" in data_dict:
+            gt = data_dict["absolute_pose_gt"]
             relative_gt = gt[:, 0].inverse() @ gt[:, 1]
             data_dict["ground_truth"] = relative_gt
 
