@@ -6,7 +6,6 @@ from slam.odometry.alignment import RigidAlignmentConfig, RIGID_ALIGNMENT, Rigid
 from slam.odometry.initialization import InitializationConfig, INITIALIZATION, Initialization
 from slam.odometry.odometry import *
 from slam.odometry.local_map import LOCAL_MAP, LocalMapConfig, LocalMap
-from slam.viz.__debug_utils import *
 from slam.viz.color_map import *
 
 

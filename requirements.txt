@@ -1,6 +1,6 @@
 # torch==1.7.1 => Only tested on pytorch 1.7.1
+# hydra-core => should be installed separately
 
-# hydra-core => should iln
 omegaconf
 pykdtree
 matplotlib
@@ -8,5 +8,6 @@ tqdm
 pandas
 scipy
 tensorboard
+numba
 
 # cv2 -- Optional : not having OpenCV installed will deactivate some functionalities
