@@ -67,3 +67,11 @@ class OdometryAlgorithm(ABC):
         Returns the total elapsed time in calling process_next_frame
         """
         return sum(self.elapsed)
+
+    @staticmethod
+    def pointcloud_key() -> str:
+        return "odometry_pc"
+
+    @staticmethod
+    def relative_pose_key() -> str:
+        return "odometry_pose"

@@ -140,7 +140,12 @@ class ICPFrameToModel(OdometryAlgorithm):
         self.__update_map(new_rpose, data_dict)
 
         # Update Previous pose
-        self.relative_poses.append(new_rpose.cpu().numpy())
+        np_new_rpose = new_rpose.cpu().numpy()
+        self.relative_poses.append(np_new_rpose)
+
+        # Update Dictionary with pointcloud and pose
+        data_dict[self.pointcloud_key()] = self._tgt_pc.cpu().numpy().reshape(-1, 3)
+        data_dict[self.relative_pose_key()] = np_new_rpose.reshape(4, 4)
 
         self._iter += 1
 

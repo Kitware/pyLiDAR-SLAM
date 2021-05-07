@@ -376,8 +376,8 @@ class KdTreeLocalMap(LocalMap):
 # ----------------------------------------------------------------------------------------------------------------------
 # Hydra Group odometry/local_map definition
 cs = ConfigStore.instance()
-cs.store(group="odometry/local_map", name="projective", node=ProjectiveLocalMapConfig)
-cs.store(group="odometry/local_map", name="kdtree", node=KdTreeLocalMapConfig)
+cs.store(group="slam/odometry/local_map", name="projective", node=ProjectiveLocalMapConfig)
+cs.store(group="slam/odometry/local_map", name="kdtree", node=KdTreeLocalMapConfig)
 
 
 class LOCAL_MAP(Enum):
