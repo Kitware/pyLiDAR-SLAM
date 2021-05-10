@@ -5,6 +5,7 @@ from slam.dataset.configuration import DatasetConfiguration, DatasetConfig
 from slam.dataset.kitti_dataset import KITTIDatasetConfiguration
 from slam.dataset.nclt_dataset import NCLTDatasetConfiguration
 from slam.dataset.ford_dataset import FordCampusDatasetConfiguration
+from slam.dataset.rosbag_dataset import _with_rosbag
 
 
 class DATASET(Enum):
@@ -15,6 +16,9 @@ class DATASET(Enum):
     kitti = KITTIDatasetConfiguration
     nclt = NCLTDatasetConfiguration
     ford_campus = FordCampusDatasetConfiguration
+    if _with_rosbag:
+        from slam.dataset.rosbag_dataset import RosbagDatasetConfiguration
+        rosbag = RosbagDatasetConfiguration
 
     @staticmethod
     def load(config: DatasetConfig):

@@ -79,6 +79,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         # -----------------------
         # Optimization Parameters
         self.gn_max_iters = self.config.max_num_alignments
+        self._sample_pointcloud: bool = False
 
         # ---------------------
         # Local state variables
@@ -131,8 +132,10 @@ class ICPFrameToModel(OdometryAlgorithm):
         # Extract initial estimate
         initial_estimate = self._motion_model.next_initial_pose(data_dict)
 
+        sample_points = self.sample_points()
+
         # Registers the new frame onto the map
-        new_rpose, losses = self.register_new_frame(self._tgt_vmap[0],
+        new_rpose, losses = self.register_new_frame(sample_points,
                                                     initial_estimate, data_dict=data_dict)
 
         # Update initial estimate
@@ -150,7 +153,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         self._iter += 1
 
     def register_new_frame(self,
-                           target_vmap: torch.Tensor,
+                           target_points: torch.Tensor,
                            initial_estimate: Optional[torch.Tensor] = None,
                            data_dict: Optional[dict] = None,
                            **kwargs) -> (torch.Tensor, torch.Tensor, torch.Tensor):
@@ -158,7 +161,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         Registers a new frame against the Local Map
 
         Args:
-            target_vmap (torch.Tensor): The target Ver
+            target_points (torch.Tensor): The target Ver
             initial_estimate (Optional[torch.Tensor]): The initial motion estimate for the ICP
             data_dict (dict): The dictionary containing the data of the new frame
 
@@ -166,17 +169,14 @@ class ICPFrameToModel(OdometryAlgorithm):
             pose_matrix (torch.Tensor): The relative pose between the current frame and the map `(1, 4, 4)`
 
         """
-        check_sizes(target_vmap, [3, -1, -1])
         new_pose_matrix = initial_estimate
         if initial_estimate is None:
-            new_pose_matrix = torch.eye(4, device=target_vmap.device,
-                                        dtype=target_vmap.dtype).unsqueeze(0)
+            new_pose_matrix = torch.eye(4, device=target_points.device,
+                                        dtype=target_points.dtype).unsqueeze(0)
 
-        _, h, w = target_vmap.shape
         losses = []
 
-        old_target_points = projection_map_to_points(target_vmap, dim=0)
-        old_target_points = old_target_points[old_target_points.norm(dim=-1) > 0.0]
+        old_target_points = target_points
         for _ in range(self.gn_max_iters):
             target_points = self.pose.apply_transformation(old_target_points.unsqueeze(0), new_pose_matrix)[0]
 
@@ -198,6 +198,15 @@ class ICPFrameToModel(OdometryAlgorithm):
             new_pose_matrix = self.pose.build_pose_matrix(delta_pose) @ new_pose_matrix
 
         return new_pose_matrix, losses
+
+    def sample_points(self):
+        """Returns the points sampled"""
+        if not self._sample_pointcloud:
+            target_points = projection_map_to_points(self._tgt_vmap[0], dim=0)
+            target_points = target_points[target_points.norm(dim=-1)]
+        else:
+            target_points = self._tgt_pc[0]
+        return target_points
 
     def get_relative_poses(self) -> np.ndarray:
         """Returns the estimated relative poses for the current sequence"""
@@ -222,6 +231,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         self._tgt_pc = None
         if isinstance(data, np.ndarray):
             check_sizes(data, [-1, 3])
+            self._sample_pointcloud = True
             pc_data = torch.from_numpy(data).to(self.device).unsqueeze(0)
             # Project into a spherical image
             vertex_map = self.projector.build_projection_map(pc_data)
@@ -244,8 +254,8 @@ class ICPFrameToModel(OdometryAlgorithm):
         else:
             raise RuntimeError(f"Could not interpret the data: {data} as a pointcloud tensor")
 
-        self._tgt_vmap = vertex_map
-        self._tgt_pc = pc_data
+        self._tgt_vmap = vertex_map.to(torch.float32)
+        self._tgt_pc = pc_data.to(torch.float32)
 
     def __update_map(self, new_rpose: torch.Tensor, data_dict: dict):
         # Updates the map if the motion since last registration is large enough
