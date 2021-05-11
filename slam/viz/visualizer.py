@@ -112,10 +112,11 @@ except ImportError:
 if _with_open3d:
 
     class SLAMViewerOpen3D:
-        """A Viewer which displays aggregated pointclouds in an Open3D window"""
+        """A Tool which allows to generate and display aggregated pointclouds from a dataset"""
 
         def __init__(self, dataset: Dataset, trajectory: Optional[np.ndarray] = None, pointcloud_key: str = "numpy_pc",
-                     color_map: str = "viridis", point_size: int = 1, light_on: bool = True, with_color: bool = True):
+                     color_map: str = "viridis", point_size: int = 1, light_on: bool = True, with_color: bool = True,
+                     black_background: bool = True):
             self.dataset = dataset
             self.pointcloud_key = pointcloud_key
             self._num_pcs = len(self.dataset)
@@ -132,10 +133,11 @@ if _with_open3d:
             self.with_color = with_color
             self.point_size = point_size
             self.light_on = light_on
+            self.black_background = black_background
 
-        def show(self, pc_ids: list, sample_ratio: float = 1.0):
+        def generate(self, pc_ids: list, sample_ratio: float = 1.0, display: bool = True):
             """
-            Displays the pointclouds in an Open3D Window
+            Generates aggregated pointclouds and optionally display them in an open3d window
             """
             pcs = []
             for idx in pc_ids:
@@ -166,11 +168,13 @@ if _with_open3d:
                 color = self.color_map(normalized_zs)[:, :3]
                 pcd.colors = open3d.utility.Vector3dVector(color)
 
-            vis = open3d.visualization.Visualizer()
-            vis.create_window()
-            vis.add_geometry(pcd)
-            vis.get_render_option().point_size = self.point_size
-            vis.get_render_option().light_on = self.light_on
-            vis.get_render_option().background_color = np.zeros((3,))
-            vis.run()
-            vis.destroy_window()
+            if display:
+                vis = open3d.visualization.Visualizer()
+                vis.create_window()
+                vis.add_geometry(pcd)
+                vis.get_render_option().point_size = self.point_size
+                vis.get_render_option().light_on = self.light_on
+                vis.get_render_option().background_color = np.zeros((3,))
+                vis.run()
+                vis.destroy_window()
+            return pcd

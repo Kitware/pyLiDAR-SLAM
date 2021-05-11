@@ -1,3 +1,4 @@
+import dataclasses
 from pathlib import Path
 from typing import Optional
 import time
@@ -7,6 +8,7 @@ import torch
 
 from abc import ABC
 import numpy as np
+from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -16,7 +18,7 @@ from hydra.core.config_store import ConfigStore
 # Project Imports
 from slam.common.pose import Pose
 from slam.common.torch_utils import collate_fun
-from slam.common.utils import check_sizes, assert_debug
+from slam.common.utils import check_sizes, assert_debug, get_git_hash
 from slam.dataset import DatasetConfiguration, DATASET
 from slam.eval.eval_odometry import OdometryResults
 from slam.dataset.configuration import DatasetConfig
@@ -82,12 +84,25 @@ class SLAMRunner(ABC):
 
         self.slam_config: SLAMConfig = self.config.slam
 
+    def save_config(self):
+        """Saves the config to Disk"""
+        with open(str(Path(self.log_dir) / "config.yaml"), "w") as config_file:
+            # Add the git hash to improve tracking of modifications
+            config_dict = self.config.__dict__
+
+            git_hash = get_git_hash()
+            if git_hash is not None:
+                config_dict["git_hash"] = git_hash
+            config_dict["_working_dir"] = os.getcwd()
+            config_file.write(OmegaConf.to_yaml(config_dict))
+
     def run_odometry(self):
         """Runs the LiDAR Odometry algorithm on the different datasets"""
         # Load the Datasets
         datasets: list = self.load_datasets()
         # Load the Slam algorithm
         slam = self.load_slam_algorithm()
+        self.save_config()
 
         for sequence_name, dataset in datasets:
             # Build dataloader

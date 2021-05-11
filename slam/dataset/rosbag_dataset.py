@@ -30,7 +30,7 @@ if _with_rosbag:
         """A Dataset which wraps a RosBag
 
         Note:
-            The dataset can only read data sequentially, and will raise an error when it is not so
+            The dataset can only read data sequentially, and will raise an error when two calls are not consecutives
 
         Args:
             file_path (str): The path on disk to the rosbag
