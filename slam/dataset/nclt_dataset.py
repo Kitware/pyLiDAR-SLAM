@@ -1,20 +1,22 @@
 import os
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
+import numpy as np
 import pandas as pd
 import scipy.interpolate
 from hydra.core.config_store import ConfigStore
 from scipy.spatial.transform import Rotation
 
+import torch
 from torch.utils.data import Dataset
 
 from omegaconf import MISSING
 from hydra.conf import field, dataclass
 
 # Project Imports
-from slam.viz.__debug_utils import *
 from slam.common.projection import SphericalProjector
+from slam.common.utils import assert_debug
 from slam.dataset import DatasetConfiguration, DatasetConfig
 
 

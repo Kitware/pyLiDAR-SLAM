@@ -1,12 +1,14 @@
 # Project Imports
+from typing import Optional
+
 from slam.common.geometry import projection_map_to_points, mask_not_null
 from slam.common.pose import Pose
 from slam.common.projection import Projector
+from slam.common.utils import check_sizes
 from slam.odometry.alignment import RigidAlignmentConfig, RIGID_ALIGNMENT, RigidAlignment
 from slam.odometry.initialization import InitializationConfig, INITIALIZATION, Initialization
 from slam.odometry.odometry import *
 from slam.odometry.local_map import LOCAL_MAP, LocalMapConfig, LocalMap
-from slam.viz.__debug_utils import *
 from slam.viz.color_map import *
 
 
