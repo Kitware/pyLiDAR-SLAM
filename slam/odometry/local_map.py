@@ -277,8 +277,12 @@ class KdTreeLocalMap(LocalMap):
         num_elements = 0
 
         if new_pc_data is not None:
-            check_sizes(new_pc_data, [-1, 3])
-            numpy_pc = new_pc_data.cpu().numpy()
+            if isinstance(new_pc_data, torch.Tensor):
+                numpy_pc = new_pc_data.reshape(-1, 3).cpu().numpy()
+            elif isinstance(new_pc_data, np.ndarray):
+                numpy_pc = new_pc_data.reshape(-1, 3)
+            else:
+                raise ValueError("Expected a numpy.ndarray or a torch.Tensor")
         elif new_vertex_map is not None:
             check_sizes(new_vertex_map, [1, 3, -1, -1])
             _, _, h, w = new_vertex_map.shape

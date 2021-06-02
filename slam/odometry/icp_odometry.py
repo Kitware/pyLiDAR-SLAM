@@ -206,7 +206,7 @@ class ICPFrameToModel(OdometryAlgorithm):
             check_sizes(data, [-1, 3])
             pc_data = torch.from_numpy(data).to(self.device).unsqueeze(0)
             # Project into a spherical image
-            vertex_map = self.projector.build_projection_map(pc_data.unsqueeze(0))
+            vertex_map = self.projector.build_projection_map(pc_data)
         elif isinstance(data, torch.Tensor):
             if len(data.shape) == 3 or len(data.shape) == 4:
                 # Cast the data tensor as a vertex map
