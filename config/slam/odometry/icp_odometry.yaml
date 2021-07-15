@@ -1,9 +1,9 @@
 # @package _group_
 
 algorithm: "icp_F2M"
-max_num_alignments: 100
+max_num_alignments: 10
 
-data_key: input_data # The pointcloud on which the ICP is performed
+data_key: vertex_map # The pointcloud on which the ICP is performed
 
 local_map: ??? # config of the local map
 initialization: ??? # config of the initialization

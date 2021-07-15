@@ -18,13 +18,8 @@ from hydra.core.config_store import ConfigStore
 # Project Imports
 from slam.common.pose import Pose
 from slam.common.torch_utils import collate_fun
-<<<<<<< HEAD
-from slam.common.utils import check_sizes, assert_debug
-from slam.dataset import DatasetLoader, DATASET
-=======
 from slam.common.utils import check_sizes, assert_debug, get_git_hash
-from slam.dataset import DatasetConfiguration, DATASET
->>>>>>> loop_closure_iros21
+from slam.dataset import DatasetLoader, DATASET
 from slam.eval.eval_odometry import OdometryResults
 from slam.dataset.configuration import DatasetConfig
 from hydra.conf import dataclass, MISSING, field
@@ -200,20 +195,12 @@ class SLAMRunner(ABC):
         """
         Returns the SLAM algorithm which will be run
         """
-<<<<<<< HEAD
-        return ODOMETRY.load(self.config.odometry,
-                             projector=self.dataset_loader.projector(),
-                             pose=self.pose,
-                             device=self.device,
-                             viz_num_pointclouds=self.viz_num_pointclouds)
-=======
         slam = SLAM(self.config.slam,
-                    projector=self.dataset_config.projector(),
+                    projector=self.dataset_loader.projector(),
                     pose=self.pose,
                     device=self.device,
                     viz_num_pointclouds=self.viz_num_pointclouds)
         return slam
->>>>>>> loop_closure_iros21
 
     def ground_truth(self, sequence_name: str) -> Optional[np.ndarray]:
         """

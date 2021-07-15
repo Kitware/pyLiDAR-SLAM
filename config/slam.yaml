@@ -12,13 +12,11 @@ slam:
   backend: ???
 
   # Loop Closure Config
-  loop_closure: ???
+  loop_closure:
 
 
 defaults:
   - slam/odometry: icp_odometry
-  - slam/backend: graph_slam
-  - slam/loop_closure: none
   - dataset: kitti
   - hydra/output: slam
   - slam/odometry/local_map: kdtree

@@ -203,7 +203,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         """Returns the points sampled"""
         if not self._sample_pointcloud:
             target_points = projection_map_to_points(self._tgt_vmap[0], dim=0)
-            target_points = target_points[target_points.norm(dim=-1)]
+            target_points = target_points[target_points.norm(dim=-1) > 0.0]
         else:
             target_points = self._tgt_pc[0]
         return target_points
