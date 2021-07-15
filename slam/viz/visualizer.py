@@ -93,3 +93,11 @@ def ImageVisualizer(channels: list, update_frequency: int = 10, wait_key: int = 
         return _ImageVisualizer(channels, update_frequency, wait_key)
     else:
         return None
+
+
+try:
+    import viz3d
+
+    _with_viz3d = True
+except ImportError:
+    _with_viz3d = True

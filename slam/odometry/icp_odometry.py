@@ -11,6 +11,10 @@ from slam.odometry.odometry import *
 from slam.odometry.local_map import LOCAL_MAP, LocalMapConfig, LocalMap
 from slam.odometry.preprocessing import PreprocessingConfig, Preprocessing
 from slam.viz.color_map import *
+from slam.viz.visualizer import _with_viz3d
+
+if _with_viz3d:
+    from viz3d.window import OpenGLWindow
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -43,6 +47,12 @@ class ICPFrameToModelConfig(OdometryConfig):
 
     # The data key which is used to search into the data dictionary for the pointcloud to register onto the new frame
     data_key: str = "vertex_map"
+
+    viz_debug: bool = True  # Whether to display the FM in a window (if exists)
+
+    # Visualization parameters
+    viz_with_edl: bool = True
+    viz_num_pcs: int = 50
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -84,6 +94,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         # ---------------------
         # Local state variables
         self.relative_poses: list = []
+        self.absolute_poses: list = []  # Absolute poses (/!\ type: torch.float64)
         self._iter = 0
         self._tgt_vmap: torch.Tensor = None
         self._tgt_pc: torch.Tensor = None
@@ -92,14 +103,26 @@ class ICPFrameToModel(OdometryAlgorithm):
         self._register_threshold_trans = self.config.threshold_trans
         self._register_threshold_rot = self.config.threshold_rot
 
+        self.viz3d_window: Optional[OpenGLWindow] = None
+        self._has_window = config.viz_with_edl and _with_viz3d
+
     def init(self):
         """Initialize/ReInitialize the state of the Algorithm and its components"""
         super().init()
         self.relative_poses = []
+        self.absolute_poses = []
         self.local_map.init()
         self._motion_model.init()
         self._iter = 0
         self._delta_since_map_update = torch.eye(4, dtype=torch.float32, device=self.device).reshape(1, 4, 4)
+
+        if self._has_window:
+            if self.viz3d_window is not None:
+                self.viz3d_window.close(True)
+                self.viz3d_window = None
+            self.viz3d_window = OpenGLWindow(
+                engine_config={"with_edl": self.config.viz_with_edl, "edl_strength": 1000.0})
+            self.viz3d_window.init()
 
     # ------------------------------------------------------------------------------------------------------------------
     def do_process_next_frame(self, data_dict: dict):
@@ -123,9 +146,11 @@ class ICPFrameToModel(OdometryAlgorithm):
             # Initiate the map with the first frame
             relative_pose = torch.eye(4, dtype=torch.float32,
                                       device=self._tgt_vmap.device).unsqueeze(0)
+
             self.local_map.update(relative_pose,
                                   new_vertex_map=self._tgt_vmap)
             self.relative_poses.append(relative_pose.cpu().numpy())
+            self.absolute_poses.append(relative_pose.cpu().to(torch.float64).numpy()[0])
             self._iter += 1
             return
 
@@ -135,8 +160,9 @@ class ICPFrameToModel(OdometryAlgorithm):
         sample_points = self.sample_points()
 
         # Registers the new frame onto the map
-        new_rpose, losses = self.register_new_frame(sample_points,
-                                                    initial_estimate, data_dict=data_dict)
+        new_rpose_params, new_rpose, losses = self.register_new_frame(sample_points,
+                                                                      initial_estimate,
+                                                                      data_dict=data_dict)
 
         # Update initial estimate
         self.update_initialization(new_rpose, data_dict)
@@ -146,8 +172,25 @@ class ICPFrameToModel(OdometryAlgorithm):
         np_new_rpose = new_rpose.cpu().numpy()
         self.relative_poses.append(np_new_rpose)
 
+        latest_pose = self.absolute_poses[-1].dot(
+            self.pose.build_pose_matrix(new_rpose_params.cpu().to(torch.float64).reshape(1, 6))[0].numpy())
+        self.absolute_poses.append(latest_pose)
+
+        tgt_np_pc = self._tgt_pc.cpu().numpy().reshape(-1, 3)
+        if self._has_window:
+            # Apply absolute pose to the pointcloud
+            world_points = np.einsum("ij,nj->ni", latest_pose[:3, :3].astype(np.float32), tgt_np_pc)
+            world_points += latest_pose[:3, 3].reshape(1, 3).astype(np.float32)
+            self.viz3d_window.set_pointcloud(self._iter % self.config.viz_num_pcs, world_points)
+            # Follow Camera
+            camera_pose = latest_pose.astype(np.float32).dot(np.array([[1.0, 0.0, 0.0, 0.0],
+                                                                       [0.0, 1.0, 0.0, 0.0],
+                                                                       [0.0, 0.0, 1.0, 60.0],
+                                                                       [0.0, 0.0, 0.0, 1.0]], dtype=np.float32))
+            self.viz3d_window.update_camera(camera_pose)
+
         # Update Dictionary with pointcloud and pose
-        data_dict[self.pointcloud_key()] = self._tgt_pc.cpu().numpy().reshape(-1, 3)
+        data_dict[self.pointcloud_key()] = tgt_np_pc
         data_dict[self.relative_pose_key()] = np_new_rpose.reshape(4, 4)
 
         self._iter += 1
@@ -170,6 +213,7 @@ class ICPFrameToModel(OdometryAlgorithm):
 
         """
         new_pose_matrix = initial_estimate
+        new_pose_params = torch.zeros(self.pose.num_params(), device=target_points.device, dtype=target_points.dtype)
         if initial_estimate is None:
             new_pose_matrix = torch.eye(4, device=target_points.device,
                                         dtype=target_points.dtype).unsqueeze(0)
@@ -195,9 +239,12 @@ class ICPFrameToModel(OdometryAlgorithm):
             if delta_pose.norm() < self.config.threshold_delta_pose:
                 break
 
-            new_pose_matrix = self.pose.build_pose_matrix(delta_pose) @ new_pose_matrix
+            # Manifold normalization to keep proper rotations
 
-        return new_pose_matrix, losses
+            new_pose_params = self.pose.from_pose_matrix(self.pose.build_pose_matrix(delta_pose) @ new_pose_matrix)
+            new_pose_matrix = self.pose.build_pose_matrix(new_pose_params)
+
+        return new_pose_params, new_pose_matrix, losses
 
     def sample_points(self):
         """Returns the points sampled"""
