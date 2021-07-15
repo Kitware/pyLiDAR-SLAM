@@ -9,6 +9,7 @@
 __*
 # Ommit __init__.py (s) from this rule
 !__init__.py
+modules/*
 
 # ignore cached compiled python  
 *__pycache__*

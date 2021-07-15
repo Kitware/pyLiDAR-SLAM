@@ -18,7 +18,7 @@ slam:
 defaults:
   - slam/odometry: icp_odometry
   - slam/backend: graph_slam
-  - slam/loop_closure: ei_loop_closure
+  - slam/loop_closure: none
   - dataset: kitti
   - hydra/output: slam
   - slam/odometry/local_map: kdtree
