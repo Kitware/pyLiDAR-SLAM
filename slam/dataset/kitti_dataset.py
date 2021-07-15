@@ -252,7 +252,7 @@ class KITTIOdometrySequence(Dataset):
             scan_path = self.raw_velodyne_path / f"{self.raw_start + idx:010}.txt"
             raw_scan = pd.read_csv(str(scan_path), sep=" ", header=None).values.astype(np.float32)
             # Apply Rectification on the scan
-            raw_scan = self._correct_scan(raw_scan)
+            # raw_scan = self._correct_scan(raw_scan)
             if self._with_numpy_pc:
                 data_dict["raw_numpy_pc"] = raw_scan
             torch_scan = torch.from_numpy(raw_scan[:, :3]).unsqueeze(0)
@@ -332,10 +332,11 @@ class KITTIDatasetLoader(DatasetLoader):
     def get_ground_truth(self, sequence_name):
         """Returns the ground truth poses associated to a sequence of KITTI's odometry benchmark"""
         if sequence_name in [f"{i:02}" for i in range(11)]:
-            poses = read_ground_truth_file(str(self.odometry_sequence_dir / "poses" / f"{sequence_name}.txt"))
+            poses = read_ground_truth_file(str(self.odometry_sequence_dir / "poses" / f"{sequence_name}.txt")).astype(
+                np.float64)
             calib_file = read_calib_file(str(self.odometry_sequence_dir / "sequences" / sequence_name / "calib.txt"))
             _tr = calib_file["Tr"].reshape(3, 4)
-            tr = np.eye(4, dtype=np.float32)
+            tr = np.eye(4, dtype=np.float64)
             tr[:3, :4] = _tr
 
             left = np.einsum("...ij,...jk->...ik", np.linalg.inv(tr), poses)

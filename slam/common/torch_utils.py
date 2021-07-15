@@ -87,6 +87,8 @@ def collate_fun(batch) -> object:
 
     If `batch` is a dictionary, every key containing the key `numpy` will not be converted to a tensor
     And a suffix "_<batch_idx>" will be appended to the key, to identify arrays by their batch index
+
+    The original key will map only to the first element of the batch
     """
     elem = batch[0]
     if isinstance(elem, list):
@@ -97,7 +99,11 @@ def collate_fun(batch) -> object:
         for key in elem:
             if "numpy" in key:
                 for idx, d in enumerate(batch):
+                    if idx == 0:
+                        result[f"{key}"] = d[key]
+
                     result[f"{key}_{idx}"] = d[key]
+
             else:
                 result[key] = collate_fun([d[key] for d in batch])
         return result

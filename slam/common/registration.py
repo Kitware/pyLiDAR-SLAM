@@ -11,10 +11,6 @@ if _with_cv2:
     from slam.common.utils import check_sizes
 
 
-    # ################################################################################################################ #
-    # 2D FEATURE BASED REGISTRATION
-    # ################################################################################################################ #
-
     class ImageBased2DRegistration:
         """
         Scan registration method using feature based Image Alignment.
@@ -25,8 +21,8 @@ if _with_cv2:
             self.config = config
 
             # OpenCV algorithms
-            self.orb: cv2.Feature2D = cv2.ORB_create()
-            self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
+            self.orb: cv2.Feature2D = cv2.AKAZE_create()
+            self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
 
             # Image Construction Parameters
             self.H = self.config.get("im_height", 400)
@@ -88,7 +84,6 @@ if _with_cv2:
 
             ref_pts = ref_pts[inliers_indices]
             tgt_pts = tgt_pts[inliers_indices]
-            transform = self.compute_transorm(ref_pts, tgt_pts, ref_img, tgt_img)
 
             points = np.concatenate([ref_pts.reshape(-1, 1, 2), tgt_pts.reshape(-1, 1, 2)], axis=1)
 
@@ -96,13 +91,14 @@ if _with_cv2:
             if num_inliers < self.inlier_threshold:
                 return None, points, inlier_matches
 
+            transform = self.compute_transorm(ref_pts, tgt_pts, ref_img, tgt_img)
+
             return transform, points, inlier_matches
 
 
-    # ----------------------------------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     class ElevationImageRegistration(ImageBased2DRegistration):
-        """
-        2D Feature based registration which estimates the planar motion (x, y, yaw)
+        """2D Feature based registration which estimates the planar motion (x, y, yaw)
 
         Only relevant for a sensor having "mainly 2D" motion, and can serve as good initialization of this motion
         """
@@ -111,21 +107,27 @@ if _with_cv2:
             super().__init__(config)
             self.pixel_size: int = self.config.get("pixel_size", 0.4)
             self.z_min: float = self.config.get("z_min", 0.0)
+            self.z_max: float = self.config.get("z_max", 5)
+            self.sigma: float = self.config.get("sigma", 0.1)
+            color_map: str = self.config.get("color_map", "jet")
+            from matplotlib import cm
+            self.color_map = cm.get_cmap(color_map)
 
         def build_image(self, pc: np.ndarray):
             """Builds an elevation image"""
-            image = np.zeros((self.H, self.W), dtype=np.float32)
+            image = np.ones((self.H, self.W), dtype=np.float32) * self.z_min
 
             pc_x = np.round(pc[:, 0] / self.pixel_size + self.H // 2).astype(np.int64)
             pc_y = np.round(pc[:, 1] / self.pixel_size + self.W // 2).astype(np.int64)
 
             pc_z = pc[:, 2]
 
-            _filter = (pc_z > self.z_min) * (0 <= pc_x) * (pc_x < self.H) * (0 <= pc_y) * (pc_y < self.W)
+            _filter = (0 <= pc_x) * (pc_x < self.H) * (0 <= pc_y) * (pc_y < self.W)
 
             pc_x = pc_x[_filter]
             pc_y = pc_y[_filter]
             pc_z = pc_z[_filter]
+            pc_z = np.clip(pc_z, self.z_min, self.z_max)
 
             indices = np.argsort(pc_z)
 
@@ -135,12 +137,9 @@ if _with_cv2:
 
             pixels = np.concatenate([pc_x.reshape(-1, 1), pc_y.reshape(-1, 1)], axis=-1)
 
-            image[pixels[:, 0], pixels[:, 1]] = 1.0
-
-            rgb_image = (image * 255.0)
-            image = cv2.GaussianBlur(rgb_image, (3, 3), 0) + cv2.GaussianBlur(rgb_image, (5, 5), 0)
-            image = np.clip(image, a_min=0.0, a_max=255.0)
-            image = 255.0 - image
+            thetas = ((pc_z - self.z_min) / (self.z_max - self.z_min)).reshape(-1)
+            image[pixels[:, 0], pixels[:, 1]] = thetas
+            image = self.color_map(image)[:, :, :3] * 255.0
             image = image.astype(np.uint8)
             return image
 
@@ -163,10 +162,10 @@ if _with_cv2:
             tgt_centered = tgt_2d_pts - tgt_mean
 
             sigma = tgt_centered.T.dot(ref_centered)
-            u, d, v = np.linalg.svd(sigma)
+            u, d, vt = np.linalg.svd(sigma)
 
             # Compute The 2D Rotation and translation
-            rot2d = v.T.dot(u.T)
+            rot2d = vt.T.dot(u.T)
             tr2d = ref_mean - rot2d.dot(tgt_mean)
 
             # Convert to 3D Relative Pose

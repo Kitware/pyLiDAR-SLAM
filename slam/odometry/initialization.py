@@ -135,7 +135,7 @@ if _with_cv2:
             self._previous_desc = None
             self._previous_image = None
 
-            self.algorithm = ElevationImageRegistration(ei_config.registration_config)
+            self.algorithm = ElevationImageRegistration(DictConfig(ei_config.registration_config))
             self.debug = ei_config.debug
             self.ni_if_failure = ei_config.ni_if_failure
 
@@ -276,9 +276,9 @@ class PoseNetInitialization(Initialization):
 
 # Hydra Config Store : for the group odometry/initialization
 cs = ConfigStore.instance()
-cs.store(group="odometry/initialization", name="CV", node=CVConfig)
-cs.store(group="odometry/initialization", name="PoseNet", node=PNConfig)
-cs.store(group="odometry/initialization", name="NI", node=NIConfig())
+cs.store(group="slam/odometry/initialization", name="CV", node=CVConfig)
+cs.store(group="slam/odometry/initialization", name="PoseNet", node=PNConfig)
+cs.store(group="slam/odometry/initialization", name="NI", node=NIConfig())
 
 if _with_cv2:
     cs.store(group="odometry/initialization", name="EI", node=EIConfig)
@@ -299,7 +299,5 @@ class INITIALIZATION(Enum):
         _type = config.type
         assert_debug(_type in INITIALIZATION.__members__)
         _algo, _config = INITIALIZATION.__members__[_type].value
-        assert_debug(OmegaConf.get_type(config) == _config,
-                     f"The following config could not be cast as a {_config}:\n{OmegaConf.to_yaml(config)}")
 
-        return _algo(config, **kwargs)
+        return _algo(_config(**config), **kwargs)

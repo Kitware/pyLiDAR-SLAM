@@ -166,6 +166,27 @@ class _GemanMcClure(_WLSScheme):
         return cost
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+class _SquareGemanMcClure(_WLSScheme):
+    """
+    The Geman-McClure robust cost function
+    """
+
+    def __init__(self, sigma: float = 0.5, **kwargs):
+        super().__init__(**kwargs)
+        self._sigma = sigma
+
+    def cost(self, residuals: torch.Tensor, sigma: Optional[float] = None, **kwargs) -> torch.Tensor:
+        """
+        Returns the weighted squared residuals
+        """
+        if sigma is None:
+            sigma = self._sigma
+        res2 = residuals ** 2
+        cost = res2 * (sigma / (sigma + res2)) ** 2
+        return cost
+
+
 class _LS_SCHEME(Enum):
     """Weighting Schemes which increase Least Square robustness"""
     default = _LeastSquareScheme
@@ -174,6 +195,7 @@ class _LS_SCHEME(Enum):
     exp = _ExponentialScheme
     neighborhood = _NeighborhoodScheme
     geman_mcclure = _GemanMcClure
+    square_geman_mcclure = _SquareGemanMcClure
 
     @staticmethod
     def get(scheme: str, **kwargs) -> _WLSScheme:

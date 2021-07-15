@@ -1,0 +1,8 @@
+# @package _group_
+
+algorithm: posenet
+checkpoint_file: checkpoint.ckp
+train_config_file: config.yaml
+train_dir: ${env:TRAIN_DIR}
+posenet_config: ???
+

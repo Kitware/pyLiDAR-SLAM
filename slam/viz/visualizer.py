@@ -1,15 +1,16 @@
 import torch
 
-from slam.common.utils import assert_debug
+from slam.common.utils import assert_debug, check_sizes
 from slam.viz.color_map import tensor_to_image
 import numpy as np
+import logging
 
 try:
     import cv2
 
     _with_cv2 = True
 except ModuleNotFoundError:
-    print("[ERROR] OpenCV (cv2 python module) not found, visualization disabled")
+    logging.warning("OpenCV (cv2 python module) not found, visualization disabled")
     _with_cv2 = False
 
 if _with_cv2:

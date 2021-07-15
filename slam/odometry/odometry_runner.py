@@ -1,3 +1,4 @@
+import dataclasses
 from pathlib import Path
 from typing import Optional
 import time
@@ -7,6 +8,7 @@ import torch
 
 from abc import ABC
 import numpy as np
+from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -16,24 +18,27 @@ from hydra.core.config_store import ConfigStore
 # Project Imports
 from slam.common.pose import Pose
 from slam.common.torch_utils import collate_fun
+<<<<<<< HEAD
 from slam.common.utils import check_sizes, assert_debug
 from slam.dataset import DatasetLoader, DATASET
+=======
+from slam.common.utils import check_sizes, assert_debug, get_git_hash
+from slam.dataset import DatasetConfiguration, DATASET
+>>>>>>> loop_closure_iros21
 from slam.eval.eval_odometry import OdometryResults
-from slam.odometry import ODOMETRY
-from slam.odometry.odometry import OdometryAlgorithm
 from slam.dataset.configuration import DatasetConfig
 from hydra.conf import dataclass, MISSING, field
 
-from slam.odometry import OdometryConfig
+from slam.slam import SLAMConfig, SLAM
 
 
 @dataclass
-class SLAMConfig:
+class SLAMRunnerConfig:
     """The configuration dataclass"""
 
     # --------------------------------
-    # OdometryConfig
-    odometry: OdometryConfig = MISSING
+    # SLAMConfig
+    slam: SLAMConfig = MISSING
     dataset: DatasetConfig = MISSING
 
     # ------------------
@@ -54,7 +59,7 @@ class SLAMConfig:
 # HYDRA Feature
 # Automatically casts the config as a SLAMConfig object, and raises errors if it cannot do so
 cs = ConfigStore.instance()
-cs.store(name="slam_config", node=SLAMConfig)
+cs.store(name="slam_config", node=SLAMRunnerConfig)
 
 
 class SLAMRunner(ABC):
@@ -63,10 +68,10 @@ class SLAMRunner(ABC):
     And if the ground truth is present, it evaluates the performance of the algorithm and saved the results to disk
     """
 
-    def __init__(self, config: SLAMConfig):
+    def __init__(self, config: SLAMRunnerConfig):
         super().__init__()
 
-        self.config: SLAMConfig = config
+        self.config: SLAMRunnerConfig = config
 
         # Pytorch parameters extracted
         self.num_workers = self.config.num_workers
@@ -82,8 +87,19 @@ class SLAMRunner(ABC):
         dataset_config: DatasetConfig = self.config.dataset
         self.dataset_loader: DatasetLoader = DATASET.load(dataset_config)
 
-        # Odometry algorithm config
-        self.slam_config: OdometryConfig = self.config.odometry
+        self.slam_config: SLAMConfig = self.config.slam
+
+    def save_config(self):
+        """Saves the config to Disk"""
+        with open(str(Path(self.log_dir) / "config.yaml"), "w") as config_file:
+            # Add the git hash to improve tracking of modifications
+            config_dict = self.config.__dict__
+
+            git_hash = get_git_hash()
+            if git_hash is not None:
+                config_dict["git_hash"] = git_hash
+            config_dict["_working_dir"] = os.getcwd()
+            config_file.write(OmegaConf.to_yaml(config_dict))
 
     def run_odometry(self):
         """Runs the LiDAR Odometry algorithm on the different datasets"""
@@ -91,6 +107,7 @@ class SLAMRunner(ABC):
         datasets: list = self.load_datasets()
         # Load the Slam algorithm
         slam = self.load_slam_algorithm()
+        self.save_config()
 
         for sequence_name, dataset in datasets:
             # Build dataloader
@@ -123,6 +140,9 @@ class SLAMRunner(ABC):
                         self.save_and_evaluate(sequence_name, relative_poses, None)
                     print("[ERRROR] running SLAM : the estimated trajectory was dumped")
                     raise e
+
+            # Dump trajectory constraints in case of loop closure
+            slam.dump_all_constraints(str(Path(self.log_dir) / sequence_name))
 
             # Evaluate the SLAM if it has a ground truth
             relative_poses = slam.get_relative_poses()
@@ -176,15 +196,24 @@ class SLAMRunner(ABC):
         pairs = [(train_dataset[1][idx], train_dataset[0][idx]) for idx in range(len(train_dataset[0]))]
         return pairs
 
-    def load_slam_algorithm(self) -> OdometryAlgorithm:
+    def load_slam_algorithm(self) -> SLAM:
         """
         Returns the SLAM algorithm which will be run
         """
+<<<<<<< HEAD
         return ODOMETRY.load(self.config.odometry,
                              projector=self.dataset_loader.projector(),
                              pose=self.pose,
                              device=self.device,
                              viz_num_pointclouds=self.viz_num_pointclouds)
+=======
+        slam = SLAM(self.config.slam,
+                    projector=self.dataset_config.projector(),
+                    pose=self.pose,
+                    device=self.device,
+                    viz_num_pointclouds=self.viz_num_pointclouds)
+        return slam
+>>>>>>> loop_closure_iros21
 
     def ground_truth(self, sequence_name: str) -> Optional[np.ndarray]:
         """

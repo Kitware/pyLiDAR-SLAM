@@ -1,0 +1,30 @@
+num_workers: 4 # The number of workers to load the data
+device: cpu # The device for the main pytorch computations
+
+dataset:
+  with_numpy_pc: true # Whether to add numpy_pc in the data_dict
+
+slam:
+  # Odometry config
+  odometry: ???
+
+  # Backend Config
+  backend: ???
+
+  # Loop Closure Config
+  loop_closure: ???
+
+
+defaults:
+  - slam/odometry: icp_odometry
+  - slam/backend: graph_slam
+  - slam/loop_closure: none
+  - dataset: kitti
+  - hydra/output: slam
+  - slam/odometry/local_map: kdtree
+  - slam/odometry/initialization: CV
+  - slam/odometry/alignment: point_to_plane_GN
+  - slam/odometry/preprocessing/filters: none
+  - dataset: kitti
+
+

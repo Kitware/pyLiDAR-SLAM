@@ -128,7 +128,7 @@ class GaussNewtonPointToPlaneAlignment(RigidAlignment):
 # ----------------------------------------------------------------------------------------------------------------------
 # Hydra Group odometry/local_map definition
 cs = ConfigStore.instance()
-cs.store(group="odometry/alignment", name="point_to_plane_GN", node=GaussNewtonPointToPlaneConfig)
+cs.store(group="slam/odometry/alignment", name="point_to_plane_GN", node=GaussNewtonPointToPlaneConfig)
 
 
 # ----------------------------------------------------------------------------------------------------------------------

@@ -1,0 +1,20 @@
+# @package _group_
+type: "ei"
+
+map_size: 100  # The number of scans to aggregate before building an elevation image
+overlap: True  # Whether to build overlapping scans
+overlap_size: 80  # The size (in number of scans) of the overlap
+
+# Image Registration Parameters
+im_height: 800
+im_width: 800
+inlier_threshold: 60
+distance_threshold: 2.0
+pixel_size: 0.1
+z_min: -2.0
+z_max: 3
+
+# Global Descriptor Parameters
+min_num_frames: 5
+max_num_candidates: 20
+

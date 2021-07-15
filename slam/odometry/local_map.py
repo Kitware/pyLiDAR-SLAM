@@ -277,12 +277,17 @@ class KdTreeLocalMap(LocalMap):
         num_elements = 0
 
         if new_pc_data is not None:
+<<<<<<< HEAD
             if isinstance(new_pc_data, torch.Tensor):
                 numpy_pc = new_pc_data.reshape(-1, 3).cpu().numpy()
             elif isinstance(new_pc_data, np.ndarray):
                 numpy_pc = new_pc_data.reshape(-1, 3)
             else:
                 raise ValueError("Expected a numpy.ndarray or a torch.Tensor")
+=======
+            check_sizes(new_pc_data, [1, -1, 3])
+            numpy_pc = new_pc_data[0].cpu().numpy()
+>>>>>>> loop_closure_iros21
         elif new_vertex_map is not None:
             check_sizes(new_vertex_map, [1, 3, -1, -1])
             _, _, h, w = new_vertex_map.shape
@@ -380,8 +385,8 @@ class KdTreeLocalMap(LocalMap):
 # ----------------------------------------------------------------------------------------------------------------------
 # Hydra Group odometry/local_map definition
 cs = ConfigStore.instance()
-cs.store(group="odometry/local_map", name="projective", node=ProjectiveLocalMapConfig)
-cs.store(group="odometry/local_map", name="kdtree", node=KdTreeLocalMapConfig)
+cs.store(group="slam/odometry/local_map", name="projective", node=ProjectiveLocalMapConfig)
+cs.store(group="slam/odometry/local_map", name="kdtree", node=KdTreeLocalMapConfig)
 
 
 class LOCAL_MAP(Enum):
