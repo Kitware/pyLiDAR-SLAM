@@ -13,10 +13,19 @@ rewritten (and hopefully improved) in a near future.
 
 
 
-## Overview of methods currently implemented
+## Overview
 
-![Main Architecture](docs/overview.png)
+![Main Architecture](docs/data/overview.png)
 
+*pyLIDAR-SLAM* is designed to be modular, multiple components are implemented at each stage of the pipeline.
+
+The motivation is to easily test and compare multiple SLAM algorithms in the same conditions, and a variety of datasets.
+
+The image above is an overview of the different method currently implemented in this project. For more details on each item see [toolbox.md](docs/toolbox.md).
+
+The benchmark for the different methods is accessible at [benchmark.md](docs/benchmark.md)
+
+The goal for the future is to gradually add functionalities to pyLIDAR-SLAM (Loop Closure, Motion Segmentation, Multi-Sensors, etc...).
 
 ## Project structure
 
@@ -34,9 +43,7 @@ rewritten (and hopefully improved) in a near future.
 ├─ run.py                  # Main script to run a LiDAR SLAM on sequences of a Dataset
 └─ train.py                # Main script to launch a training
 ```
-## Installing & Running
-
-#### *Installing*:
+## Installation 
 
 Clone the project:
 ```bash 
@@ -49,7 +56,7 @@ Install the required packages:
 pip install -r requirements.txt
 ```
 
-#### *Understanding the configuration*:
+## *Understanding the configuration*:
 
 Using **Hydra**, one can easily change any element of the configuration by adding an argument to the launch script.
 
@@ -61,7 +68,7 @@ python run.py <config-path-to-group>/<group>=<config_name>
 ```
 
 
-The Configuration hierarchy in this projects which can be seen in the `config`, is as follows:
+The configuration hierarchy in this project follows the hierarchy of folder `config`, consists of the following groups:
 
 >- **Group** [`dataset`](slam/dataset/dataset.py):
 >   - configurations: [`kitti`](slam/dataset/kitti_dataset.py), [`nclt`](slam/dataset/nclt_dataset.py), [`ford_campus`](slam/dataset/ford_campus.py)
@@ -100,7 +107,7 @@ To change a named variable within a specific configuration, is done as follows:
 python run.py <config-path-to-variable>.<var_name>=<value>
 ```
 For root variables, which are not defined in the .yaml files (but in the Structured Config dataclasses), you might also need to append a  `+`
-To the variable declaration (Hydra will complain if this is the case):
+to the variable declaration (Hydra will complain if this is the case):
 ```hydra
 python train.py +num_workers=4 +device=cuda:0
 ```
@@ -119,13 +126,30 @@ Other, dataset specific environment variables are defined below.
 Hydra will raise Exceptions on invalid configurations. 
 See [hydra](https://hydra.cc/)  documentation for more details.
 
-#### *Running the Odometry:*
-The following example runs a Projective Frame-to-Model odometry on KITTI sequences, using the device `cuda:0`: 
+## Using *pyLIDAR-SLAM* (with *hydra*):
+
+> *pyLIDAR-SLAM* proposes two scripts `run.py` and `train.py` which run with hydra's configuration generation (notably hydra's configuration verification).
+
+> Hydra comes with many perks designed for a research workflow (multiple runs with grids of arguments, automatic setting of output directories, etc..). 
+> But requires an effort to get into: hydra's enforced rigidity often leads to many configuration errors. *Read carefully hydra's error messages which give clues to the configuration errors*
+
+> So *pyLIDAR-SLAM* can also be used and considered as a library, using hydra's structured configs as a configuration system, see this [short tutorial]() for a small introduction to *pyLIDAR-SLAM* code. 
+
+### Running the SLAM 
+
+The script `run.py` executes the SLAM algorithm defined by the configuration on the datasets defined in the configuration.
+More specifically, it will:
+ - Load all sequences of the given dataset
+ - Sequentially launch the SLAM on each sequence
+ - Output the estimated trajectory in the allocated folder
+ - And if the sequence has defined ground truth poses, computes and saves the trajectory error.
+
+The following example runs a **Projective Frame-to-Model Odometry** on the sequences of KITTI dataset, using the device `cuda:0`: 
 ```bash
 # Set up the following required environment variables
-JOB_NAME=kitti_F2M                                          # The folder to log hydra output files
-DATASET=KITTI                                               # Name of the Dataset to construct the destination folder 
-KITTI_ODOM_ROOT=<path-to-kitti-odometry-root-directory>     # The path to KITTI odometry benchmark files
+export JOB_NAME=kitti_F2M                                          # The folder to log hydra output files
+export DATASET=KITTI                                               # Name of the Dataset to construct the destination folder 
+export KITTI_ODOM_ROOT=<path-to-kitti-odometry-root-directory>     # The path to KITTI odometry benchmark files
 
 # Run the script
 python run.py dataset=kitti num_workers=4 device=cuda:0 odometry/local_map=projective \
@@ -136,116 +160,45 @@ The output files (configuration files, logs, and optionally metrics on the traje
 ```bash
 .outputs/slam/${DATASET}/${JOB_NAME}/<date_time>/.
 ```
-Note: The output directory can be changed. 
 
-#### *Training PoseNet:*
+> Note: The output directory can be changed, using arguments `hydra.run.dir=<path-to-output-dir>`.
+
+### Training PoseNet:
+
+The script `train.py` launches a training of *PoseNet* on a specified dataset.
+The script will:
+ - Load all train, test and eval sequences from the Dataset 
+ - For each epoch, update the running PoseNet model in memory
+ - Save the model at a specified given location
 
 The following example launches a training of Posenet on Ford Campus Dataset, for 100 epochs:
 ```bash
-DATASET=kitti
-JOB_NAME=train_posenet
-FORD_CAMPUS_ROOT=<path-to-ford_campus-root>
-TRAIN_DIR=.outputs/training/posenet_kitti_unsupervised
+export DATASET=kitti
+export JOB_NAME=train_posenet
+export KITTI_ODOM_ROOT=<path-to-kitti-odometry-root-directory>     # The path to KITTI odometry benchmark files
+export TRAIN_DIR=<absolute-path-to-the-desired-train-dir>          # Path to the output models 
 
 # Launches the Training of PoseNet
-python train.py +device=cuda:0 +num_workers=4 +num_epochs=100 dataset=ford_campus
+python train.py +device=cuda:0 +num_workers=4 +num_epochs=100 dataset=kitti
 ```
+
+> /!\ The working directory of the script is controlled by hydra, so beware of relative paths!
 
 The output files are saved by default at: 
 ```bash
-.outputs/training/posenet_ford_campus_unsupervised/.  ===> Training files
-.outputs/.training/JOB_NAME/<date_time>/.             ===> Hydra logs and config files for the current run 
+.outputs/training/posenet_kitti_unsupervised/.          ===> Training files
+.outputs/.training/<JOB_NAME>/<date_time>/.             ===> Hydra logs and config files for the current run 
 ```
 
 
-## DATASETS
+### DATASETS
 
-#### *KITTI*
+*pyLIDAR-SLAM* incorporates different datasets, see [datasets.md](docs/datasets.md) for installation and setup instructions for each of these datasets.
+Only the datasets implemented in *pyLIDAR-SLAM* are compatible with hydra's mode and the scripts `run.py` and `train.py`. 
 
-LiDAR data and ground truth from [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) odometry benchmark.
-The expected layout of KITTI data on disk is as follows:
-```bash
-├─ <KITTI_ODOM_ROOT>    # Root of the Odometry benchmark data
-        ├─ poses        # The ground truth files
-            ├─ 00.txt
-            ├─ 01.txt
-                ...
-            └─ 10.txt
-        └─ sequences
-            ├─ 00 
-                ├─ calib.txt
-                └─ velodyne
-                    ├─ 000000.bin
-                    ├─ 000001.bin
-                        ...
-            ├─ 01
-                ├─ calib.txt
-                └─ velodyne
-                    ├─ 000000.bin
-                        ...
-            ...
-```
+But you can define your own datasets by extending the class [`DatasetLoader`](slam/dataset/dataset.py).
 
-For example, to run the ICP odometry on KITTI:
-```bash
-# Set up the following required environment variables
-JOB_NAME=kitti_F2M                                          
-DATASET=KITTI                                              
-KITTI_ODOM_ROOT=<path-to-kitti-odometry-root-directory>     
 
-# Run the script
-python run.py dataset=kitti
-```
-
-#### *Ford Campus*
-LiDAR data and ground truth from [Ford Campus](http://robots.engin.umich.edu/SoftwareData/Ford) dataset. 
-The expected layout of Ford Campus data on disk is as follows:
-```bash
-├─ <FORD_ROOT>    # Root of the data
-        ├─ IJRR-Dataset-1        
-            └─ SCANS                # The pointclouds are read from the Scan files 
-                ├─ Scan0075.mat 
-                ├─ Scan0076.mat
-                    ...
-        └─ IJRR-Dataset-2
-            ...
-```
-
-Example running the ICP odometry on Ford Campus:
-```bash
-# Set up the following required environment variables
-JOB_NAME=ford_campus_F2M                                          
-DATASET=FORD_CAMPUS                                              
-FORD_ROOT=<path-to-ford-campus-root-directory>     
-
-# Run the script
-python run.py dataset=ford_campus
-```
-
-#### *NCLT*
-LiDAR data and ground truth from [NCLT](http://robots.engin.umich.edu/SoftwareData/Ford) dataset. 
-The expected layout of NCLT data on disk is as follows:
-```bash
-├─ <NCLT_ROOT>    # Root of the data
-        ├─ 2012-04-29               # Date of acquisition of the sequence        
-            └─ velodyne_sync                # The folder containing the velodyne aggregated pointclouds
-                ├─ 1335704127712909.bin
-                ├─ 1335704127712912.bin
-                    ...
-            └─ groundtruth_2012-04-29.csv   # Corresponding ground truth file
-         ... # Idem for other sequences
-```
-
-Example running the ICP odometry on NCLT:
-```bash
-# Set up the following required environment variables
-JOB_NAME=nclt_F2M                                          
-DATASET=NCLT                                              
-NCLT_ROOT=<path-to-ford-campus-root-directory>     
-
-# Run the script
-python run.py dataset=nclt
-```
 
 ### System Tested
 

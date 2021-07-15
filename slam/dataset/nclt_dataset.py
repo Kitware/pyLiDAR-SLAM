@@ -17,7 +17,7 @@ from hydra.conf import field, dataclass
 # Project Imports
 from slam.common.projection import SphericalProjector
 from slam.common.utils import assert_debug
-from slam.dataset import DatasetConfiguration, DatasetConfig
+from slam.dataset import DatasetLoader, DatasetConfig
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -180,7 +180,7 @@ cs.store(group="dataset", name="nclt", node=NCLTConfig)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class NCLTDatasetConfiguration(DatasetConfiguration):
+class NCLTDatasetLoader(DatasetLoader):
     """
     A Configuration for the NCLT Dataset
 

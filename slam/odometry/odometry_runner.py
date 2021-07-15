@@ -17,7 +17,7 @@ from hydra.core.config_store import ConfigStore
 from slam.common.pose import Pose
 from slam.common.torch_utils import collate_fun
 from slam.common.utils import check_sizes, assert_debug
-from slam.dataset import DatasetConfiguration, DATASET
+from slam.dataset import DatasetLoader, DATASET
 from slam.eval.eval_odometry import OdometryResults
 from slam.odometry import ODOMETRY
 from slam.odometry.odometry import OdometryAlgorithm
@@ -80,7 +80,7 @@ class SLAMRunner(ABC):
 
         # Dataset config
         dataset_config: DatasetConfig = self.config.dataset
-        self.dataset_config: DatasetConfiguration = DATASET.load(dataset_config)
+        self.dataset_loader: DatasetLoader = DATASET.load(dataset_config)
 
         # Odometry algorithm config
         self.slam_config: OdometryConfig = self.config.odometry
@@ -171,7 +171,7 @@ class SLAMRunner(ABC):
         Where :
             sequence_name is the name of a sequence which will be constructed
         """
-        train_dataset, _, _, _ = self.dataset_config.sequences()
+        train_dataset, _, _, _ = self.dataset_loader.sequences()
         assert_debug(train_dataset is not None)
         pairs = [(train_dataset[1][idx], train_dataset[0][idx]) for idx in range(len(train_dataset[0]))]
         return pairs
@@ -181,7 +181,7 @@ class SLAMRunner(ABC):
         Returns the SLAM algorithm which will be run
         """
         return ODOMETRY.load(self.config.odometry,
-                             projector=self.dataset_config.projector(),
+                             projector=self.dataset_loader.projector(),
                              pose=self.pose,
                              device=self.device,
                              viz_num_pointclouds=self.viz_num_pointclouds)
@@ -190,4 +190,4 @@ class SLAMRunner(ABC):
         """
         Returns the ground truth associated with the sequence
         """
-        return self.dataset_config.get_ground_truth(sequence_name)
+        return self.dataset_loader.get_ground_truth(sequence_name)

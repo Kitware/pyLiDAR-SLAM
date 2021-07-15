@@ -28,7 +28,7 @@ class DatasetConfig:
     with_numpy_pc: bool = True  # Whether to add the numpy pc to the data_dict
 
 
-class DatasetConfiguration(ABC):
+class DatasetLoader(ABC):
     """
     A DatasetConfiguration is the configuration for the construction of pytorch Datasets
     """

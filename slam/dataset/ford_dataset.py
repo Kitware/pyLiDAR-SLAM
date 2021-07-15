@@ -15,7 +15,7 @@ from hydra.conf import dataclass, MISSING, field
 from slam.common.pose import Pose
 from slam.common.projection import SphericalProjector
 from slam.common.utils import assert_debug
-from slam.dataset import DatasetConfiguration, DatasetConfig
+from slam.dataset import DatasetLoader, DatasetConfig
 from slam.eval.eval_odometry import compute_relative_poses
 
 
@@ -106,7 +106,7 @@ cs = ConfigStore.instance()
 cs.store(group="dataset", name="ford_campus", node=FordCampusConfig)
 
 
-class FordCampusDatasetConfiguration(DatasetConfiguration):
+class FordCampusDatasetLoader(DatasetLoader):
     """
     Configuration for Ford Dataset
     """

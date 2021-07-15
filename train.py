@@ -12,7 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 from slam.common.pose import Pose
 from slam.common.projection import SphericalProjector
 from slam.common.utils import assert_debug
-from slam.dataset import DATASET, DatasetConfiguration, DatasetConfig
+from slam.dataset import DATASET, DatasetLoader, DatasetConfig
 from slam.training.loss_modules import _PointToPlaneLossModule, _PoseSupervisionLossModule, LossConfig
 from slam.training.prediction_modules import _PoseNetPredictionModule, PredictionConfig
 from slam.training.trainer import ATrainer, ATrainerConfig
@@ -49,7 +49,7 @@ class PoseNetTrainer(ATrainer):
         super().__init__(config)
         self.pose = Pose(self.config.pose)
 
-        self.dataset_config: DatasetConfiguration = DATASET.load(config.dataset)
+        self.dataset_config: DatasetLoader = DATASET.load(config.dataset)
         self.projector: SphericalProjector = self.dataset_config.projector()
 
         # Share root parameters to Prediction Node

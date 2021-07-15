@@ -1,10 +1,10 @@
 from enum import Enum
 
 from slam.common.utils import assert_debug
-from slam.dataset.configuration import DatasetConfiguration, DatasetConfig
-from slam.dataset.kitti_dataset import KITTIDatasetConfiguration
-from slam.dataset.nclt_dataset import NCLTDatasetConfiguration
-from slam.dataset.ford_dataset import FordCampusDatasetConfiguration
+from slam.dataset.configuration import DatasetLoader, DatasetConfig
+from slam.dataset.kitti_dataset import KITTIDatasetLoader
+from slam.dataset.nclt_dataset import NCLTDatasetLoader
+from slam.dataset.ford_dataset import FordCampusDatasetLoader
 
 
 class DATASET(Enum):
@@ -12,9 +12,9 @@ class DATASET(Enum):
     The different datasets covered by the dataset_config configuration
     A configuration must have the field dataset_config pointing to one of these keys
     """
-    kitti = KITTIDatasetConfiguration
-    nclt = NCLTDatasetConfiguration
-    ford_campus = FordCampusDatasetConfiguration
+    kitti = KITTIDatasetLoader
+    nclt = NCLTDatasetLoader
+    ford_campus = FordCampusDatasetLoader
 
     @staticmethod
     def load(config: DatasetConfig):

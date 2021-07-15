@@ -13,7 +13,7 @@ from hydra.conf import dataclass, MISSING, field
 # Project Imports
 from slam.common.projection import SphericalProjector
 from slam.common.utils import assert_debug
-from slam.dataset.configuration import DatasetConfiguration, DatasetConfig
+from slam.dataset.configuration import DatasetLoader, DatasetConfig
 from slam.eval.eval_odometry import compute_relative_poses
 
 
@@ -307,7 +307,7 @@ cs.store(group="dataset", name="kitti", node=KITTIConfig)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class KITTIDatasetConfiguration(DatasetConfiguration):
+class KITTIDatasetLoader(DatasetLoader):
     """
     Configuration for KITTI's dataset odometry benchmark
     see http://www.cvlibs.net/datasets/kitti/eval_odometry.php
