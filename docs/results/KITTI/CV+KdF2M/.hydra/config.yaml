@@ -1,4 +1,4 @@
-num_workers: 4
+num_workers: 2
 device: cpu
 dataset:
   with_numpy_pc: true
@@ -35,7 +35,7 @@ dataset:
 slam:
   odometry:
     algorithm: icp_F2M
-    max_num_alignments: 100
+    max_num_alignments: 20
     data_key: input_data
     local_map:
       pose: euler
@@ -53,19 +53,16 @@ slam:
         max_iters: 1
         scheme: geman_mcclure
         num_gn_iters: 1
-        sigma: 0.5
+        sigma: 0.1
     preprocessing:
       filters:
         '1':
           filter_name: voxelization
-          voxel_x_size: 0.2
-          voxel_y_size: 0.2
-          voxel_z_size: 0.2
+          voxel_size: 0.2
         '2':
           filter_name: to_tensor
           keys:
             voxel_means: input_data
             voxel_covariances: input_covariances
-    viz_num_pcs: 20
   backend: ???
   loop_closure: null

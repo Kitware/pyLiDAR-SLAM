@@ -1,7 +1,7 @@
 slam:
   odometry:
     algorithm: icp_F2M
-    max_num_alignments: 100
+    max_num_alignments: 20
     data_key: input_data
     local_map:
       pose: euler
@@ -19,20 +19,17 @@ slam:
         max_iters: 1
         scheme: geman_mcclure
         num_gn_iters: 1
-        sigma: 0.5
+        sigma: 0.1
     preprocessing:
       filters:
         '1':
           filter_name: voxelization
-          voxel_x_size: 0.2
-          voxel_y_size: 0.2
-          voxel_z_size: 0.2
+          voxel_size: 0.2
         '2':
           filter_name: to_tensor
           keys:
             voxel_means: input_data
             voxel_covariances: input_covariances
-    viz_num_pcs: 20
   backend: ???
   loop_closure: null
 dataset:
@@ -67,12 +64,12 @@ dataset:
   eval_sequences:
   - '09'
   - '10'
-log_dir: /home/pdell/dev/pylidar-slam/.outputs/slam/KITTI/slam_loop_closure/2021-07-15_23-47-07
-num_workers: 4
+log_dir: /home/pdell/dev/pylidar-slam/.outputs/slam_sweep/2021-07-16_18-11-24/IROS21_KDTREE/0
+num_workers: 2
 pin_memory: true
 device: cpu
 pose: euler
 viz_num_pointclouds: 200
 debug: true
-git_hash: 66471ae
-_working_dir: /home/pdell/dev/pylidar-slam/.outputs/slam/KITTI/slam_loop_closure/2021-07-15_23-47-07
+git_hash: d933c61
+_working_dir: /home/pdell/dev/pylidar-slam/.outputs/slam_sweep/2021-07-16_18-11-24/IROS21_KDTREE/0

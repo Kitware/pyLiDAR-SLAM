@@ -1,0 +1,11 @@
+# @package _group_
+
+filters:
+  "1":
+    filter_name: grid_sample
+    voxel_size: 0.3
+
+  "2":
+    filter_name: to_tensor
+    keys:
+      sample_points: input_data

@@ -1,9 +1,12 @@
 """
 This script builds a `benchmark.md` file which aggregates the results saved on disk.
 
-It searches for all results in a root directory, computes the trajectory error, ranks the results,
+It searches for recursively for all results in a root directory, computes the trajectory error, ranks the results,
 And display writes the `benchmark.md` files which contains the table aggregating all the results.
+
+If many trajectories need to be evaluated, this script can take a long time.
 """
+
 import sys
 import os
 from dataclasses import dataclass

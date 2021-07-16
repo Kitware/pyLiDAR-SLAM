@@ -4,10 +4,9 @@ Convenient Pointcloud processing functions
 @note:  Most functions are accelerated by numba and thus compiled to machine code with LLVM,
         Thus the first call of functions with decorator @nb.njit is typically very long (up to a few seconds)
 """
-from numba import prange
 import numba as nb
-
 import numpy as np
+from numba import prange
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -166,3 +165,15 @@ def voxel_normal_distribution(pointcloud, voxel_hashes, is_sorted: bool = False)
     """
     voxel_sizes, means, covs, voxel_ids = __voxel_normal_distribution(pointcloud, voxel_hashes, is_sorted)
     return np.array(voxel_sizes), np.array(means), np.array(covs), voxel_ids
+
+
+def grid_sample(pointcloud, voxel_hashes):
+    """Sample one point per voxel hash, returns the sample points and the indices of the sampled points
+
+    Args:
+        pointcloud (np.ndarray): The input pointcloud `(n, 3)` [np.float32, np.float64]
+        voxel_hashes (np.ndarray): The voxel hashes `(n,)` [np.int64]
+    """
+    _, unique_indices = np.unique(voxel_hashes, return_index=True)
+
+    return pointcloud[unique_indices], unique_indices

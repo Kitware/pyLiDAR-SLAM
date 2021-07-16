@@ -104,7 +104,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         self._register_threshold_rot = self.config.threshold_rot
 
         self.viz3d_window: Optional[OpenGLWindow] = None
-        self._has_window = config.viz_with_edl and _with_viz3d
+        self._has_window = config.viz_debug and _with_viz3d
 
     def __del__(self):
         if self._has_window:
