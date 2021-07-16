@@ -154,7 +154,7 @@ def compute_kitti_metrics(trajectory, ground_truth) -> tuple:
         rot_err = sum([error["r_err"] for error in errors])[0]
         tr_err /= len(errors)
         rot_err /= len(errors)
-        return tr_err, rot_err
+        return tr_err, rot_err, errors
     return None, None
 
 
@@ -269,7 +269,7 @@ class OdometryResults(object):
             df_absolute_gt.to_csv(str(self.log_dir_path / f"{sequence_id}_gt.poses.txt"), sep=delimiter(), index=False)
 
             # Save the metrics dict
-            tr_err, rot_err = compute_kitti_metrics(absolute_pred, absolute_gt)
+            tr_err, rot_err, errors = compute_kitti_metrics(absolute_pred, absolute_gt)
             if tr_err and rot_err:
                 ate, std_ate = compute_ate(relative_prediction, relative_ground_truth)
                 are, std_are = compute_are(relative_prediction, relative_ground_truth)
@@ -288,6 +288,8 @@ class OdometryResults(object):
 
             if additional_metrics_filename is not None:
                 self.save_metrics(additional_metrics_filename)
+
+            # TODO Add Average translation error as simple metric over all sequences (to have one number)
 
             # Save the files
             draw_trajectory_files([absolute_pred[:, 0, 3], absolute_gt[:, 0, 3]],
