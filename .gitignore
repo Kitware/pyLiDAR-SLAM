@@ -4,6 +4,7 @@
 # ommit git files from this rule
 !.gitignore
 !.gitmodules
+!.hydra
 
 # Define a rule to hide specific folder and files
 __*

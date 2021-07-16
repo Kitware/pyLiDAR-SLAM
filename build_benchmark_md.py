@@ -95,6 +95,7 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
                     _errors = []
                     for seq_metrics in new_metrics.values():
                         _errors += seq_metrics["errors"]
+                        seq_metrics.pop("errors")
                     avg_tr_err = sum([error["tr_err"][0] for error in _errors]) / len(_errors)
                     new_metrics["AVG_tr_err"] = avg_tr_err * 100
                     new_metrics["AVG_time"] = sum([new_metrics[seq]["average_time"] for seq in folder_names]) / len(
@@ -102,6 +103,14 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
                 else:
                     new_metrics["AVG_tr_err"] = -1.0
                     new_metrics["AVG_time"] = -1.0
+
+                # Try to read the config to find a git_hash
+                config_path = new_dir_path / "config.yaml"
+                if config_path.exists():
+                    with open(str(config_path), "r") as stream:
+                        config_dict = yaml.safe_load(stream)
+                        if "git_hash" in config_dict:
+                            new_metrics["git_hash"] = config_dict["git_hash"]
 
                 new_metrics["has_all_sequences"] = has_all_sequences
                 metrics[new_dir] = new_metrics
@@ -127,8 +136,8 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
                         "| ---: " * (len(folder_names) + 3) + "|\n"]
 
     command_lines = ["#### Command Lines for each entry\n",
-                     f"| **Sequence Folder** | Command Line |\n",
-                     "| ---: | ---: |\n"]
+                     f"| **Sequence Folder** | Command Line | git hash |\n",
+                     "| ---: | ---: |  ---: |\n"]
 
     for entry in db_metrics:
         path, avg, add_avg = entry
@@ -142,7 +151,8 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
         line = f"| {path_link} | {columns} | {f'{avg:.4f}' if add_avg else ''} | {f'{avg_time:.3f}'} |\n"
         main_table_lines.append(line)
 
-        command_lines.append(f"| {path_link} |  {_metrics['command'] if 'command' in _metrics else ''}   |\n")
+        command_lines.append(
+            f"| {path_link} |  {_metrics['command'] if 'command' in _metrics else ''}   | {_metrics['git_hash'] if 'git_hash' in _metrics else ''}|\n")
 
     output_root = Path(cfg.output_dir)
     if not output_root.exists():
