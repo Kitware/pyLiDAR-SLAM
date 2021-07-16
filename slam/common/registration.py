@@ -8,7 +8,7 @@ if _with_cv2:
     import numpy as np
     from omegaconf import DictConfig
 
-    from slam.common.utils import check_sizes
+    from slam.common.utils import check_sizes, assert_debug
 
 
     class ImageBased2DRegistration:
@@ -21,7 +21,12 @@ if _with_cv2:
             self.config = config
 
             # OpenCV algorithms
-            self.orb: cv2.Feature2D = cv2.AKAZE_create()
+            features = config.get("features", "orb")
+            assert_debug(features in ["orb", "akaze"])
+            if features == "akaze":
+                self.orb: cv2.Feature2D = cv2.AKAZE_create()
+            else:
+                self.orb: cv2.Feature2D = cv2.ORB_create();
             self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
 
             # Image Construction Parameters

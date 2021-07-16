@@ -106,6 +106,11 @@ class ICPFrameToModel(OdometryAlgorithm):
         self.viz3d_window: Optional[OpenGLWindow] = None
         self._has_window = config.viz_with_edl and _with_viz3d
 
+    def __del__(self):
+        if self._has_window:
+            if self.viz3d_window is not None:
+                self.viz3d_window.close(True)
+
     def init(self):
         """Initialize/ReInitialize the state of the Algorithm and its components"""
         super().init()

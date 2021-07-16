@@ -53,9 +53,7 @@ class VoxelizationConfig(FilterConfig):
     with_normal_distribution: bool = True  # Whether to compute voxel statistics
 
     # Voxel sizes
-    voxel_x_size: float = 0.1
-    voxel_y_size: float = 0.1
-    voxel_z_size: float = 0.2
+    voxel_size: float = 0.2
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -79,9 +77,9 @@ class Voxelization(Filter):
         check_sizes(pointcloud, [-1, 3])
 
         voxel_coordinates = voxelise(pointcloud,
-                                     self.config.voxel_x_size,
-                                     self.config.voxel_y_size,
-                                     self.config.voxel_z_size)
+                                     self.config.voxel_size,
+                                     self.config.voxel_size,
+                                     self.config.voxel_size)
         voxel_hashes = np.zeros_like(voxel_coordinates[:, 0])
         voxel_hashing(voxel_coordinates, voxel_hashes)
 

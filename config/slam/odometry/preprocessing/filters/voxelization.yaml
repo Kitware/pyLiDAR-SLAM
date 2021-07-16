@@ -2,9 +2,7 @@
 
 "1":
   filter_name: voxelization
-  voxel_x_size: 0.2
-  voxel_y_size: 0.2
-  voxel_z_size: 0.2
+  voxel_size: 0.2
 
 "2":
   filter_name: to_tensor

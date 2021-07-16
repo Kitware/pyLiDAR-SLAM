@@ -166,7 +166,7 @@ if _with_cv2:
 
             # Extract KeyPoints and descriptors
             result = None
-            if self._previous_image is not None:
+            if self._previous_image is not None and len(kpts) > 50:
                 result, inliers, inliers_matches = self.algorithm.align_2d(self._previous_kpts, self._previous_desc,
                                                                            kpts, desc,
                                                                            self._previous_image, image)
