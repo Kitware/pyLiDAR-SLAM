@@ -15,7 +15,7 @@ rewritten (and hopefully improved) in a near future.
 
 ## Overview
 
-![Main Architecture](docs/data/overview.png)
+![Presentation](docs/data/presentation.webm)
 
 *pyLIDAR-SLAM* is designed to be modular, multiple components are implemented at each stage of the pipeline.
 

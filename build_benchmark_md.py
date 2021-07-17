@@ -164,7 +164,9 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
     output_file = str(output_root / "benchmark.md")
     with open(output_file, "w") as stream:
         stream.writelines(header)
+        stream.write("\n\n")
         stream.writelines(main_table_lines)
+        stream.write("\n\n")
         stream.writelines(command_lines)
 
 

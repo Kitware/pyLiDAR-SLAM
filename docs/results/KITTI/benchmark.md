@@ -1,12 +1,16 @@
 ## KITTI Benchmark:
 
 
+
+
 #### Sorted trajectory error on all sequences:
 | **Sequence Folder**|00 | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10  |  AVG  | AVG Time (ms) |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | [EI+KdF2M](/home/pdell/dev/pylidar-slam/docs/results/KITTI/EI+KdF2M) | 0.5286 | 0.7978 | 0.5236 | 0.6940 | 0.4491 | 0.3367 | 0.3074 | 0.3544 | 0.7977 | 0.5441 | 0.5055 | 0.5578 | 418.414 |
 | [CV+KdF2M](/home/pdell/dev/pylidar-slam/docs/results/KITTI/CV+KdF2M) | 0.5407 | 0.7453 | 0.5479 | 0.7108 | 0.4139 | 0.3289 | 0.3125 | 0.3462 | 0.8036 | 0.5224 | 0.5368 | 0.5637 | 634.990 |
 | [CV+PF2M](/home/pdell/dev/pylidar-slam/docs/results/KITTI/CV+PF2M) | 0.8758 | 1.1384 | 0.9884 | 1.4319 | 0.8869 | 0.7648 | 0.5922 | 0.6415 | 1.5061 | 1.1210 | 1.6449 | 1.0541 | 92.755 |
+
+
 #### Command Lines for each entry
 | **Sequence Folder** | Command Line | git hash |
 | ---: | ---: |  ---: |

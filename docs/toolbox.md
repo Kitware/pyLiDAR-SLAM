@@ -92,12 +92,63 @@ python run.py +device=cuda:0 +num_workers=4 dataset=kitti slam/odometry/initiali
 > - **cv_distortion**: applies an initial distortion of the frame following the constant velocity assumption (uses timestamps and the initial pose predicted)
 > - **voxelization**: voxelize a frame computes the voxel statistics mean/covariance
 > - **grid_sampling**: select a point by voxel for a selected voxel size
+> - **none** by default
 
->
 
-# Odometry
+> **Command argument**: `slam/odometry/preprocessing=<module name>`. See [preprocessing.py](../slam/odometry/preprocessing.py) for more details.
 
-# Post-processing
+# Odometry 
+
+> The different type of odometries accessible in **pyLIDAR-SLAM** are:
+> - Classical ICP based **Frame-to-Model** odometry: (see [icp_odometry.py](../slam/odometry/icp_odometry.py))
+> - Deep PoseNet based odometry: (see [posenet_odometry.py](../slam/odometry/posenet_odometry.py))
+
+## Classical ICP based **Frame-to-Model** odometry
+
+> The frame-to-model odometry estimates the relative pose of a new frame related to the previous registered pose.
+
+> This is performed by registering the new frame against a **Model** which is typically a **Local Map** built from the previous registered frames.
+
+> It will at each time step: 
+ - Estimate the motion of the new frame as seen above
+ - Preprocess the new frame as seen above
+ - Register the new frame against the map (*ie* estimate the relative pose)
+    - Search for neighbor points of the current frame in the map and their normals
+    - Minimize an robust energy (typically a point)
+ - Update the map
+ - Log the pose and other values to the frame dictionary
+
+#### Local Maps
+
+>**pyLIDAR-SLAM** proposes the following implementations of a Local Map (all are implemented in [local_map.py](../slam/odometry/local_map.py)):
+
+**1.** **kdtree** (cpu): 
+>   At each time step the previous *n* pointclouds are transformed in the last inserted pose coordinate frame, 
+>   and a kdtree is constructed on the aggregated pointcloud. Points of the new frame are queried against the newly formed kdtree. 
+>   Note that the creation and querying of the **KdTree** is expensive, so consider sampling points to improve the speed.
+>   Use `slam/odometry/local_map=kdtree` to select the kdtree.
+
+**2.** **projective** (gpu):
+
+> The previous *n* pointclouds are also transformed in the last inserted pose coordinate frame, but they are projected in 2D space using a spherical projection.
+> This allows for projective data association which can be performed on the **GPU** using pytorch's cuda backend. To select this option use `slam/odometry/local_map=projective`.
+> The projective local map uses the `Projector` defined by the dataset (which can be tweaked in the configuration). This method is probably not the most desirable for very sparse LiDARs as neighborhood are defined by shared pixel values. However for a Dataset such as KITTI they allow to build a SLAM in real-time (sacrificing a bit of precision).
+
+
+#### Robust Alignment
+
+> The ICP-based odometry proposes a robust **Point-to-Plane** alignment scheme. Each neighbor search leads to a set of point-to-plane residuals. 
+> The minimization is performed by a gauss-newton. To improve the robustness to outliers the following robust loss function schemes can be selected in the configuration:
+> - **least_square**: the default untruncated squared loss
+> - **huber**
+> - **geman_mcclure**
+> - **cauchy**
+> - **neighborhood**: weights residuals by the distance between neighbors (or the confidence that a match is good)
+
+> To select a loss function select the following arguments `slam.odometry.alignment.gauss_newton_config.scheme=neighborhood,cauchy,etc..`
+
+> More details can be found at [alignment.py](../slam/odometry/alignment.py).
+
 
 # Loop Closure (*Under Development)
 
