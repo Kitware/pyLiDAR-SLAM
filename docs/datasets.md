@@ -92,7 +92,7 @@ The Ford Campus Dataset consists of 2 large sequences of LiDAR data acquired wit
 
 ### Installation Instructions
 
- - Download the two sequences of the dataset: [dataset-1](http://robots.engin.umich.edu/uploads/SoftwareData/Ford/dataset-1.tar.gz) ~78GB
+ - Download the two sequences of the dataset: [dataset-1](http://robots.engin.umich.edu/uploads/SoftwareData/Ford/dataset-1.tar.gz) ~78GB, [dataset-2](http://robots.engin.umich.edu/uploads/SoftwareData/Ford/dataset-2.tar.gz) ~119GB
  - Alternatively download the sampled data of the [dataset-1](http://robots.engin.umich.edu/uploads/SoftwareData/Ford/dataset-1-subset.tgz) ~6GB
  - Extract both archives in the same root directory
 
