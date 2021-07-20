@@ -5,6 +5,7 @@ from slam.dataset.configuration import DatasetLoader, DatasetConfig
 from slam.dataset.kitti_dataset import KITTIDatasetLoader
 from slam.dataset.nclt_dataset import NCLTDatasetLoader
 from slam.dataset.ford_dataset import FordCampusDatasetLoader
+from slam.dataset.nhcd_dataset import NHCDDatasetLoader
 
 from slam.dataset.rosbag_dataset import _with_rosbag
 
@@ -17,6 +18,7 @@ class DATASET(Enum):
     kitti = KITTIDatasetLoader
     nclt = NCLTDatasetLoader
     ford_campus = FordCampusDatasetLoader
+    nhcd = NHCDDatasetLoader
     if _with_rosbag:
         from slam.dataset.rosbag_dataset import RosbagDatasetConfiguration
         rosbag = RosbagDatasetConfiguration

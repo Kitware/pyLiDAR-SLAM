@@ -1,0 +1,10 @@
+# @package _group_
+dataset: nhcd
+root_dir: ${env:NHCD_ROOT}
+lidar_height: 64
+lidar_width: 720
+up_fov: 25
+down_fov: -25
+train_sequences: [ "01_short_experiment", "02_long_experiment" ]
+test_sequences: [ ]
+eval_sequences: [ ]

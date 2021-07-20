@@ -9,5 +9,6 @@ pandas
 scipy
 tensorboard
 numba
+open3d # For IO + Visualization purposes
 
 # cv2 -- Optional : not having OpenCV installed will deactivate some functionalities
