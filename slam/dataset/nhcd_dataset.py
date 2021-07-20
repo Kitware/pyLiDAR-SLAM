@@ -15,6 +15,7 @@ from hydra.conf import dataclass, MISSING, field
 from slam.common.projection import SphericalProjector
 from slam.common.utils import assert_debug
 from slam.dataset.configuration import DatasetLoader, DatasetConfig
+from slam.eval.eval_odometry import compute_relative_poses
 
 
 def read_ground_truth(file_path: str):
@@ -196,7 +197,8 @@ class NHCDDatasetLoader(DatasetLoader):
                         "Cannot read the ground truth")
             return None
 
-        return pointcloud_poses(poses, poses_timestamps, sorted(os.listdir(str(scans_dir))))
+        absolute_poses = pointcloud_poses(poses, poses_timestamps, sorted(os.listdir(str(scans_dir))))
+        return compute_relative_poses(absolute_poses)
 
     def sequences(self):
         """

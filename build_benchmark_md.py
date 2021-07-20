@@ -33,14 +33,26 @@ cs = ConfigStore.instance()
 cs.store(name="benchmark", node=BenchmarkBuilderConfig)
 
 
+def load_dataset(dataset: str) -> tuple:
+    assert_debug(dataset in ["kitti", "nhcd", "ford_campus", "nclt"])
+    if dataset == "kitti":
+        return "KITTI", [f"{i:02}" for i in range(11)]
+    if dataset == "nhcd":
+        return "Newer Handheld College Dataset", ["01_short_experiment", "02_long_experiment"]
+    if dataset == "nclt":
+        return "NCLT Long Pose Dataset", ["2012-01-08", "2012-01-15", "2012-01-22", "2013-01-10"]
+    if dataset == "ford_campus":
+        return "Ford Campus Dataset", ["dataset-1", "dataset-2"]
+
+
 @hydra.main(config_path=None, config_name="benchmark")
 def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
     """Builds the benchmark"""
 
     root_dir = cfg.root_dir
     dataset = cfg.dataset
-    assert_debug(dataset == "kitti", "Only kitti is supported (for now) to build a benchmark")
-    folder_names = [f"{i:02}" for i in range(11)]
+
+    dataset_name, folder_names = load_dataset(dataset)
 
     metrics = {}  # map root_path -> computed metrics
     # Recursively search all child directories for folder with the appropriate name
@@ -133,7 +145,7 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
     db_metrics.sort(key=lambda x: x[1] if x[2] else float("inf"))
 
     # Build the list
-    header = ["## KITTI Benchmark:\n\n\n"]
+    header = [f"## {dataset_name} Benchmark:\n\n\n"]
     main_table_lines = ["#### Sorted trajectory error on all sequences:\n",
                         f"| **Sequence Folder**|{' | '.join(folder_names)}  |  AVG  | AVG Time (ms) |\n",
                         "| ---: " * (len(folder_names) + 3) + "|\n"]
@@ -173,8 +185,8 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
 if __name__ == "__main__":
     # Set the working directory to current directory
     sys.argv.append(f'hydra.run.dir={os.getcwd()}')
-# Disable logging
-sys.argv.append("hydra/hydra_logging=disabled")
-sys.argv.append("hydra/job_logging=disabled")
-sys.argv.append("hydra.output_subdir=null")
-build_benchmark()
+    # Disable logging
+    sys.argv.append("hydra/hydra_logging=disabled")
+    sys.argv.append("hydra/job_logging=disabled")
+    sys.argv.append("hydra.output_subdir=null")
+    build_benchmark()
