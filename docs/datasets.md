@@ -4,6 +4,7 @@
 > - [KITTI](#kitti)
 > - [Ford-Campus](#ford_campus)
 > - [NCLT](#nclt)
+> - [Newest Handheld College Dataset](#NHCD)
 >
 >The following describes for each dataset the installation instructions, how to adapt the configurations, and how to run
 the SLAM on these Datasets. 
@@ -18,6 +19,8 @@ the SLAM on these Datasets.
   - [ford_campus.yaml](../config/dataset/ford_campus.yaml)
   - [kitti.yaml](../config/dataset/kitti.yaml)
   - [nclt.yaml](../config/dataset/nclt.yaml)
+  - [nhcd.yaml](../config/dataset/nhcd.yaml)
+  
 
 > To modify fields of a `dataset` config in the command line, pass it as argument using hydra's mechanism, (e.g. `python run.py dataset=kitti dataset.lidar_height=64 dataset.lidar_width=840` will project the dataset pointclouds in *vertex maps* of dimension 3x64x840)
 
@@ -163,4 +166,47 @@ NCLT_ROOT=<path-to-ford-campus-root-directory>
 # Run the script
 python run.py dataset=nclt
 ```
+
 #### See [nclt_dataset.py](../slam/dataset/nclt_dataset.py) for more details.
+
+## <a name="nclt">Newest Handheld College Dataset</a>
+
+Contains long sequences of a college campus acquired with a Ouster LiDAR sensor with 64 channels, mounted on a handheld acquisition platform.
+The dataset has accurate ground truth acquired by registration of ouster scan on a precise 3D map acquired with a survey-grade laser scanner. 
+
+#### Installation instruction
+
+ - Go to the dataset [webpage](https://ori-drs.github.io/newer-college-dataset/) and register to access the google drive. 
+ - Download from `01_short_experiment` and `02_long_experiment` folders on the drive the poses (relative path: `ground_truth/registered_poses.csv`) and  the ouster scans as `.pcd` files (in the relative path `raw_format/ouster_scan/.`)
+ - Extract the zip files in order to have the following layout on disk:
+ 
+```bash
+├─ <NHCD_ROOT>    # Root of the data
+        ├─ 01_short_experiment              # Date of acquisition of the sequence        
+            └─ ouster_scan                  # The folder containing the ouster scans 
+                ├─ cloud_1583836591_182590976.pcd
+                    ...
+            └─ ground_truth                 # The sequence ground truth files (in the reference frame of the left camera)
+                ├─ registered_poses.csv
+
+         ... # Idem for other sequence
+```
+
+#### Configuration Setup
+
+Before calling `run.py` or `train.py`, the following environment variables must be set:
+- `NHCD_ROOT`: points to the root dataset as defined above.
+
+Example running the ICP odometry on the Newer Handheld College Dataset:
+```bash
+# Set up the following required environment variables
+export JOB_NAME=nhcd_F2M                                          
+export DATASET=NHCD                                              
+export NHCD_ROOT=<path-to-ford-campus-root-directory>     
+
+# Run the script
+python run.py dataset=nhcd
+```
+
+
+#### See [nhcd_dataset.py](../slam/dataset/nhcd_dataset.py) for more details.
