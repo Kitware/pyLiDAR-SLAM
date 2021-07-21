@@ -38,6 +38,10 @@ python run.py -m dataset=kitti num_workers=4 device=cuda:0 slam/odometry/local_m
 
 > A benchmark of the methods implemented in **pyLIDAR-SLAM** evaluated on *KITTI* can be found at [benchmark.md](results/KITTI/benchmark.md).
 
+#### Newer Handheld College Dataset
+
+> The benchmark is still in construction and can be found at [benchmark.md](results/NHCD/benchmark.md). 
+
 
 #### TODOs
 - [ ] NCLT

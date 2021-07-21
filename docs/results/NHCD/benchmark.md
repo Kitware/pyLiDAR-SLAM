@@ -1,8 +1,6 @@
 ## Newer Handheld College Dataset Benchmark:
 
 
-
-
 #### Sorted trajectory error on all sequences:
 | **Sequence Folder**|01_short_experiment | 02_long_experiment  |  AVG  | AVG Time (ms) |
 | ---: | ---: | ---: | ---: | ---: |

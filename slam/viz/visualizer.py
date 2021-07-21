@@ -100,4 +100,4 @@ try:
 
     _with_viz3d = True
 except ImportError:
-    _with_viz3d = True
+    _with_viz3d = False
