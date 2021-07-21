@@ -174,7 +174,7 @@ The script will:
  - For each epoch, update the running PoseNet model in memory
  - Save the model at a specified given location
 
-The following example launches a training of Posenet on Ford Campus Dataset, for 100 epochs:
+The following example launches a training of Posenet on KITTI Dataset, for 100 epochs:
 ```bash
 export DATASET=kitti
 export JOB_NAME=train_posenet
@@ -209,9 +209,9 @@ In [benchmark.md](docs/benchmark.md) we present the results of *pyLIDAR-SLAM* on
 
 ### System Tested
 
-| OS            | CUDA   | pytorch  |
-| --- | --- | --- |
-| Ubuntu 18.04  | 10.2   | 1.7.1    |
+| OS            | CUDA   | pytorch  | python | 
+| --- | --- | --- | --- | 
+| Ubuntu 18.04  | 10.2   | 1.7.1    | 3.8.8 |
 
 ### Author
 This is a work realised in the context of Pierre Dellenbach PhD thesis under supervision of [Bastien Jacquet](https://www.linkedin.com/in/bastienjacquet/?originalSubdomain=fr) ([Kitware](https://www.kitware.com/computer-vision/)), 
