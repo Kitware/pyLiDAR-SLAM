@@ -21,8 +21,7 @@ rewritten (and hopefully improved) in a near future.
 *pyLIDAR-SLAM* is designed to be modular, multiple components are implemented at each stage of the pipeline.
 
 The motivation is to easily test and compare multiple SLAM algorithms in the same conditions, and a variety of datasets.
-
-The image above is an overview of the different method currently implemented in this project. For more details on each item see [toolbox.md](docs/toolbox.md).
+For a detailed presentation of its different components see [toolbox.md](docs/toolbox.md).
 
 The goal for the future is to gradually add functionalities to pyLIDAR-SLAM (Loop Closure, Motion Segmentation, Multi-Sensors, etc...).
 
