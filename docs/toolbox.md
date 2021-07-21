@@ -134,6 +134,8 @@ python run.py +device=cuda:0 +num_workers=4 dataset=kitti slam/odometry/initiali
 > This allows for projective data association which can be performed on the **GPU** using pytorch's cuda backend. To select this option use `slam/odometry/local_map=projective`.
 > The projective local map uses the `Projector` defined by the dataset (which can be tweaked in the configuration). This method is probably not the most desirable for very sparse LiDARs as neighborhood are defined by shared pixel values. However for a Dataset such as KITTI they allow to build a SLAM in real-time (sacrificing a bit of precision).
 
+>To select a **NVIDIA gpu** to perform projective alignment, select the appropriate device using the argument `device=cuda:0`.
+
 
 #### Robust Alignment
 
