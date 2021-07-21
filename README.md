@@ -23,8 +23,6 @@ The motivation is to easily test and compare multiple SLAM algorithms in the sam
 
 The image above is an overview of the different method currently implemented in this project. For more details on each item see [toolbox.md](docs/toolbox.md).
 
-The benchmark for the different methods is accessible at [benchmark.md](docs/benchmark.md)
-
 The goal for the future is to gradually add functionalities to pyLIDAR-SLAM (Loop Closure, Motion Segmentation, Multi-Sensors, etc...).
 
 ## Project structure
@@ -204,6 +202,10 @@ Only the datasets implemented in *pyLIDAR-SLAM* are compatible with hydra's mode
 But you can define your own datasets by extending the class [`DatasetLoader`](slam/dataset/dataset.py).
 
 
+## Benchmarks
+
+One of the motivation of *pyLIDAR-SLAM* is to be able to compare the performances of its different modules on different datasets.
+In [benchmark.md](docs/benchmark.md) we present the results of *pyLIDAR-SLAM* on the most popular open-source datasets. 
 
 ### System Tested
 
@@ -214,7 +216,6 @@ But you can define your own datasets by extending the class [`DatasetLoader`](sl
 ### Author
 This is a work realised in the context of Pierre Dellenbach PhD thesis under supervision of [Bastien Jacquet](https://www.linkedin.com/in/bastienjacquet/?originalSubdomain=fr) ([Kitware](https://www.kitware.com/computer-vision/)), 
 Jean-Emmanuel Deschaud & François Goulette (Mines ParisTech).
-
 
 ### Cite
 

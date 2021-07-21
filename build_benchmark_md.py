@@ -1,8 +1,8 @@
 """
-This script builds a `benchmark.md` file which aggregates the results saved on disk.
+This script builds a `nhcd_benchmark.md` file which aggregates the results saved on disk.
 
 It searches for recursively for all results in a root directory, computes the trajectory error, ranks the results,
-And display writes the `benchmark.md` files which contains the table aggregating all the results.
+And display writes the `nhcd_benchmark.md` files which contains the table aggregating all the results.
 
 If many trajectories need to be evaluated, this script can take a long time.
 """
@@ -138,7 +138,7 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
                         command_line = "`python run.py " + " ".join(overrides_list) + "`"
                         new_metrics["command"] = command_line
 
-    # Build the benchmark.md table
+    # Build the nhcd_benchmark.md table
     db_metrics = [(path,
                    entry_metrics["AVG_tr_err"],
                    entry_metrics["has_all_sequences"]) for path, entry_metrics in metrics.items()]
@@ -173,7 +173,7 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
     if not output_root.exists():
         output_root.mkdir()
 
-    output_file = str(output_root / "benchmark.md")
+    output_file = str(output_root / f"{dataset_name}_benchmark.md")
     with open(output_file, "w") as stream:
         stream.writelines(header)
         stream.write("\n\n")
