@@ -15,7 +15,8 @@ rewritten (and hopefully improved) in a near future.
 
 ## Overview
 
-![KITTI Sequence 00 with pyLiDAR-SLAM](docs/data/video_file.mov)
+![KITTI Sequence 00 with pyLiDAR-SLAM](docs/data/pylidar_slam_1.png) ![KITTI Sequence 00 with pyLiDAR-SLAM](docs/data/pylidar_slam_3.png)
+
 
 *pyLIDAR-SLAM* is designed to be modular, multiple components are implemented at each stage of the pipeline.
 
