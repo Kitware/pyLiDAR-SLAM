@@ -8,14 +8,14 @@ which allows us to easily test the different modules and parameters with few but
 
 
 This is a research project provided "as-is" without garanties, 
-use at your own risk. It is actively used for internal research thus is likely to be heavily extended, 
+use at your own risk. It is actively used for **[Kitware Vision team](https://www.kitware.fr/equipe-vision-par-odinateur/)** internal research thus is likely to be heavily extended, 
 rewritten (and hopefully improved) in a near future.
 
 
 
 ## Overview
 
-![Presentation](docs/data/presentation.webm)
+![KITTI Sequence 00 with pyLiDAR-SLAM](docs/data/video_file.webm)
 
 *pyLIDAR-SLAM* is designed to be modular, multiple components are implemented at each stage of the pipeline.
 
@@ -140,8 +140,6 @@ See [hydra](https://hydra.cc/)  documentation for more details.
 > Hydra comes with many perks designed for a research workflow (multiple runs with grids of arguments, automatic setting of output directories, etc..). 
 > But requires an effort to get into: hydra's enforced rigidity often leads to many configuration errors. *Read carefully hydra's error messages which give clues to the configuration errors*
 
-> So *pyLIDAR-SLAM* can also be used and considered as a library, using hydra's structured configs as a configuration system, see this [short tutorial]() for a small introduction to *pyLIDAR-SLAM* code. 
-
 ### Running the SLAM 
 
 The script `run.py` executes the SLAM algorithm defined by the configuration on the datasets defined in the configuration.
@@ -214,7 +212,7 @@ But you can define your own datasets by extending the class [`DatasetLoader`](sl
 | Ubuntu 18.04  | 10.2   | 1.7.1    |
 
 ### Author
-This is a work realised in the context of Pierre Dellenbach PhD thesis under supervision of Bastien Jacquet ([Kitware](https://www.kitware.fr/equipe-vision-par-odinateur/)), 
+This is a work realised in the context of Pierre Dellenbach PhD thesis under supervision of [Bastien Jacquet](https://www.linkedin.com/in/bastienjacquet/?originalSubdomain=fr) ([Kitware](https://www.kitware.com/computer-vision/)), 
 Jean-Emmanuel Deschaud & François Goulette (Mines ParisTech).
 
 
