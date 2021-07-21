@@ -48,7 +48,7 @@ The goal for the future is to gradually add functionalities to pyLIDAR-SLAM (Loo
 
 Clone the project:
 ```bash 
-git clone https://gitlab.kitware.com/keu-computervision/pylidar-slam
+git clone https://github.com/Kitware/pyLiDAR-SLAM
 ```
 Install [pytorch](https://pytorch.org/get-started/previous-versions/) and [hydra](https://hydra.cc/docs/intro).
 
