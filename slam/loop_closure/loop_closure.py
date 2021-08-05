@@ -1,27 +1,20 @@
-<<<<<<< HEAD
-=======
 import copy
->>>>>>> [feat] Add V1 of loop Closure
 import logging
 from abc import ABC
 from collections import namedtuple
 from enum import Enum
 
 import numpy as np
-import open3d as o3d
 from hydra.conf import dataclass, MISSING, ConfigStore, field
 # Hydra and OmegaConf
 from omegaconf import DictConfig, OmegaConf
-<<<<<<< HEAD
 
 # Project Imports
-from slam.backend.backend import Backend
-from slam.common.modules import _with_cv2
+from slam.common.modules import _with_cv2, _with_o3d
 from slam.common.pointcloud import grid_sample
 from slam.common.pose import transform_pointcloud
 from slam.common.registration import ElevationImageRegistration
 from slam.common.utils import assert_debug, check_tensor, ObjectLoaderEnum
-=======
 from hydra.conf import dataclass, MISSING, ConfigStore, field
 
 # Project Imports
@@ -31,11 +24,12 @@ from slam.common.pose import transform_pointcloud
 from slam.common.registration import ElevationImageRegistration, weighted_procrustes
 from slam.common.utils import assert_debug, check_tensor, ObjectLoaderEnum
 from slam.odometry.alignment import GNPointToPointConfig, GaussNewtonPointToPointAlignment
+from slam.common.utils import assert_debug, check_tensor
+from slam.odometry.alignment import GNPointToPointConfig, GaussNewtonPointToPointAlignment
 
 from slam.viz import _with_cv2
 
 import open3d as o3d
->>>>>>> [feat] Add V1 of loop Closure
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -92,6 +86,9 @@ class LoopClosure(ABC):
 if _with_cv2:
     import cv2
 
+    if _with_o3d:
+        import open3d as o3d
+
 
     @dataclass
     class EILoopClosureConfig:
@@ -99,11 +96,7 @@ if _with_cv2:
         type: str = "elevation_image"
         local_map_size: int = 50  # The number of frames in the stored local map
         overlap: int = 20  # The number of frames overlapping in the stored local map
-<<<<<<< HEAD
         debug: bool = False
-=======
-        debug: bool = True
->>>>>>> [feat] Add V1 of loop Closure
         max_num_candidates: int = 10  # Maximum number of candidates to inspect
         max_distance: float = 100  # Limit the maximum distance to search for loops
         min_id_distance: int = 200  # Do not try to detect loop closure between temporally close poses
@@ -113,21 +106,13 @@ if _with_cv2:
 
         ei_registration_config: DictConfig = field(default_factory=lambda: OmegaConf.create({
             "features": "akaze",
-<<<<<<< HEAD
             "pixel_size": 0.1,
             "z_min": -3.0,
             "z_max": 5,
             "sigma": 0.1,
             "im_height": 1200,
             "im_width": 1200,
-=======
             "pixel_size": 0.15,
-            "z_min": -3.0,
-            "z_max": 5,
-            "sigma": 0.1,
-            "im_height": 800,
-            "im_width": 800,
->>>>>>> [feat] Add V1 of loop Closure
             "color_map": "jet",
             "inlier_threshold": 50,
             "distance_threshold": 2.0
@@ -141,10 +126,7 @@ if _with_cv2:
         current_frame_id: int = 0
         all_frames_absolute_poses: list = field(default_factory=lambda: [])
         maps_absolute_poses: np.ndarray = field(default_factory=lambda: np.zeros((0, 4, 4), dtype=np.float64))
-<<<<<<< HEAD
         maps_frame_ids: list = field(default_factory=lambda: [])
-=======
->>>>>>> [feat] Add V1 of loop Closure
 
         current_map_pcs: list = field(default_factory=lambda: [])  # Store the pointclouds
         current_map_poses: list = field(default_factory=lambda: [])  # Absolute poses
@@ -153,23 +135,20 @@ if _with_cv2:
 
     LocalMapData = namedtuple("LocalMapData", ['keypoints', 'descriptors', 'pointcloud', 'frame_id'])
 
-
-<<<<<<< HEAD
-=======
-    def draw_registration_result(source, target, transformation):
-        source_temp = copy.deepcopy(source)
-        target_temp = copy.deepcopy(target)
-        source_temp.paint_uniform_color([1, 0.706, 0])
-        target_temp.paint_uniform_color([0, 0.651, 0.929])
-        source_temp.transform(transformation)
-        o3d.visualization.draw_geometries([source_temp, target_temp],
-                                          zoom=0.4459,
-                                          front=[0.9288, -0.2951, -0.2242],
-                                          lookat=[1.6784, 2.0612, 1.4451],
-                                          up=[-0.3402, -0.9189, -0.1996])
+    if _with_o3d:
+        def draw_registration_result(source, target, transformation):
+            source_temp = copy.deepcopy(source)
+            target_temp = copy.deepcopy(target)
+            source_temp.paint_uniform_color([1, 0.706, 0])
+            target_temp.paint_uniform_color([0, 0.651, 0.929])
+            source_temp.transform(transformation)
+            o3d.visualization.draw_geometries([source_temp, target_temp],
+                                              zoom=0.4459,
+                                              front=[0.9288, -0.2951, -0.2242],
+                                              lookat=[1.6784, 2.0612, 1.4451],
+                                              up=[-0.3402, -0.9189, -0.1996])
 
 
->>>>>>> [feat] Add V1 of loop Closure
     class ElevationImageLoopClosure(LoopClosure):
         """
         An Implementation of a Loop Detection and Estimation Algorithm
@@ -197,7 +176,6 @@ if _with_cv2:
             self.data.local_map_data = [convert_tuple(nt) for nt in self.maps_saved_data]
             return self.data
 
-<<<<<<< HEAD
         def update_positions(self, trajectory: np.ndarray):
             check_tensor(trajectory, [self.data.current_frame_id, 4, 4])
             if self.data.current_frame_id == 0:
@@ -212,8 +190,6 @@ if _with_cv2:
             for idx in range(num_poses_in_current_map):
                 self.data.current_map_poses[-idx] = trajectory[-idx]
 
-=======
->>>>>>> [feat] Add V1 of loop Closure
         def load(self, map_data: MapData):
             # Return MapData (convert cv2.KeyPoint which are not handled by the pickling protocol)
             def convert_tuple(_tuple):
@@ -233,10 +209,7 @@ if _with_cv2:
             self.data.current_map_pcs.clear()
             self.data.current_map_poses.clear()
             self.data.current_map_frameids.clear()
-<<<<<<< HEAD
             self.data.all_frames_absolute_poses.clear()
-=======
->>>>>>> [feat] Add V1 of loop Closure
             self.data.last_inserted_pose = np.eye(4, dtype=np.float64)
             self.data.current_frame_id = 0
             self.data.maps_absolute_poses = np.zeros((0, 4, 4), dtype=np.float64)
@@ -254,25 +227,16 @@ if _with_cv2:
                 source, target, self.config.icp_distance_threshold, initial_transform.astype(np.float64),
                 o3d.pipelines.registration.TransformationEstimationPointToPoint())
 
-<<<<<<< HEAD
             return np.linalg.inv(result.transformation), candidate_pc, target_pc
-=======
-            return result.transformation, candidate_pc, target_pc
->>>>>>> [feat] Add V1 of loop Closure
 
         def _match_candidates(self, candidate_ids, feat, desc, points, frame_id, data_dict: dict):
             assert isinstance(self.config, EILoopClosureConfig)
             for candidate in candidate_ids:
                 cd_feat, cd_desc, cd_pc_image, cd_frame_id = self.maps_saved_data[candidate]
-
-<<<<<<< HEAD
                 transform, points_2D, inlier_matches = self.registration_2D.align_2d(feat, desc, cd_feat,
                                                                                      cd_desc, None, None)
                 if self.config.debug:
                     logging.info(f"Found {len(inlier_matches)}")
-=======
-                transform, points_2D, _ = self.registration_2D.align_2d(feat, desc, cd_feat, cd_desc, None, None)
->>>>>>> [feat] Add V1 of loop Closure
                 if transform is not None:
                     if self.config.with_icp_refinement:
                         cd_points = cd_pc_image.reshape(-1, 3)
@@ -302,10 +266,7 @@ if _with_cv2:
             else:
                 relative_pose = np.eye(4, dtype=np.float64)
 
-<<<<<<< HEAD
             # Update the absolute pose of the last inserted pointcloud
-=======
->>>>>>> [feat] Add V1 of loop Closure
             self.data.last_inserted_pose = self.data.last_inserted_pose.dot(relative_pose)
 
             if self.pointcloud_key() not in data_dict:
@@ -359,10 +320,7 @@ if _with_cv2:
                 self.data.maps_absolute_poses = np.concatenate(
                     [self.data.maps_absolute_poses, mid_pose.reshape(1, 4, 4)],
                     axis=0)
-<<<<<<< HEAD
                 self.data.maps_frame_ids.append(mid_pose_frame_id)
-=======
->>>>>>> [feat] Add V1 of loop Closure
                 self.maps_saved_data.append(LocalMapData(feat, desc,
                                                          meta_data["points_3D"], mid_pose_frame_id))
 
@@ -377,16 +335,13 @@ if _with_cv2:
             self.data.current_frame_id += 1
             return data_dict
 
-<<<<<<< HEAD
 # Add Elevation Image to the Config Store
 cs = ConfigStore.instance()
 cs.store(name="none", group="slam/loop_closure", node=None)
 if _with_cv2:
-=======
 
     # Add Elevation Image to the Config Store
     cs = ConfigStore.instance()
->>>>>>> [feat] Add V1 of loop Closure
     cs.store(name="elevation_image", group="slam/loop_closure", node=EILoopClosureConfig)
 
 
