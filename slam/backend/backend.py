@@ -184,7 +184,11 @@ if _with_g2o:
         max_optim_iterations: int = 100
         online_optimization: bool = True
 
+<<<<<<< HEAD
         debug: bool = False
+=======
+        debug: bool = True
+>>>>>>> [feat] Add V1 of loop Closure
 
 
     class GraphSLAM(Backend):
@@ -256,7 +260,11 @@ if _with_g2o:
                                   self.fix_first_frame)
                 self.odometry_poses = [np.eye(4)]
 
+<<<<<<< HEAD
             if self.with_window:
+=======
+            if self.with_window is not None:
+>>>>>>> [feat] Add V1 of loop Closure
                 self.window = OpenGLWindow()
                 self.window.init()
 
@@ -389,6 +397,9 @@ if _with_g2o:
                 if self.with_window and self.window is not None:
                     self.window.set_cameras(0, self.absolute_poses().astype(np.float32))
 
+                if self.with_window and self.window is not None:
+                    self.window.set_cameras(0, self.absolute_poses().astype(np.float32))
+
         def optimize(self, max_num_epochs: int = 20):
             if not self.config.online_optimization:
                 # Reset all poses to odometry poses
@@ -419,6 +430,13 @@ class BACKEND(ObjectLoaderEnum, Enum):
 
     none = (None, None)
 
+<<<<<<< HEAD
     @classmethod
     def type_name(cls):
         return "type"
+=======
+
+@classmethod
+def type_name(cls):
+    return "type"
+>>>>>>> [feat] Add V1 of loop Closure
