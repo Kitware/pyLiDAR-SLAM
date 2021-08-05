@@ -14,7 +14,7 @@ from slam.common.geometry import compute_normal_map, projection_map_to_points
 from slam.common.optimization import _LS_SCHEME, _WLSScheme, PointToPlaneCost
 from slam.common.pose import Pose
 from slam.common.projection import Projector
-from slam.common.utils import assert_debug, check_sizes
+from slam.common.utils import assert_debug, check_tensor
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -105,7 +105,7 @@ class _PointToPlaneLossModule(nn.Module):
     def forward(self, data_dict: dict):
         vertex_map = data_dict["vertex_map"]
         if "normal_map" not in data_dict:
-            check_sizes(vertex_map, [-1, 2, 3, -1, -1])
+            check_tensor(vertex_map, [-1, 2, 3, -1, -1])
             b, seq, _, h, w = vertex_map.shape
             normal_map = compute_normal_map(vertex_map.view(b * seq, 3, h, w)).view(b, seq, 3, h, w)
             data_dict["normal_map"] = normal_map

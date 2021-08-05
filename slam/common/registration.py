@@ -1,14 +1,88 @@
 from abc import abstractmethod
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
+
+import torch
+import numpy as np
+from slam.common.utils import TensorType
 
 from slam.common.modules import _with_cv2
 
+
+# ######################################################################################################################
+# 3D REGISTRATION
+# ######################################################################################################################
+
+def weighted_procrustes(pc_target: TensorType,
+                        pc_reference: TensorType,
+                        weights: Optional[TensorType] = None) -> TensorType:
+    is_torch = isinstance(pc_target, torch.Tensor)
+    if is_torch:
+        check_tensor(pc_target, [-1, -1, 3])
+        check_tensor(pc_reference, [*pc_reference.shape])
+
+        if weights is None:
+            weights = torch.ones(pc_target.shape[0], pc_target.shape[1], 1,
+                                 dtype=pc_target.dtype, device=pc_target.device)
+        avg_weights = weights / weights.sum(dim=1)
+    else:
+        check_tensor(pc_target, [-1, 3])
+        check_tensor(pc_reference, [*pc_target.shape])
+        if weights is None:
+            weights = np.ones(pc_target.shape[0], 1, dtype=pc_target.dtype)
+        avg_weights = weights / weights.sum(axis=0)
+
+    mu_tgt = (pc_target * avg_weights).sum(**(dict(dim=1) if is_torch else dict(axis=0)))
+    mu_ref = (pc_reference * avg_weights).sum(**(dict(dim=1) if is_torch else dict(axis=0)))
+    if is_torch:
+        mu_tgt = mu_tgt.reshape(-1, 1, 3)
+        mu_ref = mu_ref.reshape(-1, 1, 3)
+    else:
+        mu_tgt = mu_tgt.reshape(1, 3)
+        mu_ref = mu_ref.reshape(1, 3)
+
+    C_ref_tgt = torch.einsum("bin,bnj->bij", (pc_reference - mu_ref).transpose(1, 2),
+                             (pc_target - mu_tgt)).to(torch.float64) if is_torch else \
+        np.einsum("in,nj->ij", (pc_reference - mu_ref).T.astype(np.float64), (pc_target - mu_tgt)).astype(np.float64)
+
+    if is_torch:
+        U, _, V = C_ref_tgt.svd()
+        S = torch.eye(3, device=C_ref_tgt.device, dtype=torch.float64)
+        if U.det() * V.det() < 0:
+            S[-1, -1] = -1
+
+        mu_tgt = mu_tgt.to(torch.float64)
+        mu_ref = mu_ref.to(torch.float64)
+
+        b = C_ref_tgt.shape[0]
+        Tr = torch.eye(4, device=C_ref_tgt.device,
+                       dtype=torch.float64).reshape(1, 4, 4).repeat(b, 4, 4)
+        Tr[:, :3, :3] = torch.einsum("bij,bjk->bik", torch.einsum("bij,jk->bik", U, S), V.permute(0, 2, 1))
+        Tr[:, :3, 3] = mu_ref.reshape(b, 3) - (Tr[:, :3, :3] @ mu_tgt.permute(0, 2, 1)).reshape(b, 3)
+    else:
+        U, _, Vt = np.linalg.svd(C_ref_tgt)
+        S = np.eye(3, dtype=np.float64)
+        if np.linalg.det(U) * np.linalg.det(Vt) < 0:
+            S[-1, -1] = -1
+
+        mu_tgt = mu_tgt.astype(np.float64)
+        mu_ref = mu_ref.astype(np.float64)
+
+        Tr = np.eye(4, dtype=np.float64)
+        Tr[:3, :3] = U.dot(S).dot(Vt)
+        Tr[:3, 3] = mu_ref.reshape(3) - (Tr[:3, :3].dot(mu_tgt.T)).reshape(3)
+
+    return Tr
+
+
+# ######################################################################################################################
+# 2D REGISTRATION
+# ######################################################################################################################
+
 if _with_cv2:
     import cv2
-    import numpy as np
     from omegaconf import DictConfig
 
-    from slam.common.utils import check_sizes, assert_debug
+    from slam.common.utils import check_tensor, assert_debug, TensorType
 
 
     class ImageBased2DRegistration:
@@ -36,22 +110,22 @@ if _with_cv2:
             self._distance_threshold: float = self.config.get("distance_threshold", 2.0)
 
         @abstractmethod
-        def build_image(self, pc: np.ndarray):
+        def build_image(self, pc: np.ndarray) -> Union[np.ndarray, dict]:
             """Builds the image from the pointcloud (which will be matched by 2D feature based alignment)"""
             raise NotImplementedError("")
 
         @abstractmethod
-        def compute_transorm(self, ref_2d_pts, tgt_2d_pts, ref_img, tgt_img):
+        def compute_transorm(self, ref_2d_pts, tgt_2d_pts, **kwargs):
             """Computes the 3D transform from the aligned points"""
             raise NotImplementedError("")
 
         def compute_features(self, pc: np.ndarray):
             """Projects the pc into the image plane, and compute features and descriptors"""
-            image = self.build_image(pc)
+            image, meta_data = self.build_image(pc)
             # Extract KeyPoints and descriptors
             kpts, desc = self.orb.detectAndCompute(image, None)
 
-            return image, kpts, desc
+            return image, kpts, desc, meta_data
 
         def compute_inliers(self, ref_pts, tgt_pts):
             """
@@ -59,12 +133,12 @@ if _with_cv2:
 
             By default, the best homography is found
             """
-            check_sizes(ref_pts, [-1, 2])
-            check_sizes(tgt_pts, [ref_pts.shape[0], 2])
+            check_tensor(ref_pts, [-1, 2])
+            check_tensor(tgt_pts, [ref_pts.shape[0], 2])
             h, inliers = cv2.findHomography(ref_pts, tgt_pts, cv2.RANSAC, self._distance_threshold)
             return inliers
 
-        def align_2d(self, ref_kpts, ref_desc, tgt_kpts, tgt_desc, ref_img, tgt_img) -> \
+        def align_2d(self, ref_kpts, ref_desc, tgt_kpts, tgt_desc, ref_img=None, tgt_img=None) -> \
                 Tuple[Optional[np.ndarray], np.ndarray, list]:
             """
             Attempts to align the target onto the reference, and if enough inliers are found,
@@ -96,7 +170,7 @@ if _with_cv2:
             if num_inliers < self.inlier_threshold:
                 return None, points, inlier_matches
 
-            transform = self.compute_transorm(ref_pts, tgt_pts, ref_img, tgt_img)
+            transform = self.compute_transorm(ref_pts, tgt_pts)
 
             return transform, points, inlier_matches
 
@@ -134,21 +208,39 @@ if _with_cv2:
             pc_z = pc_z[_filter]
             pc_z = np.clip(pc_z, self.z_min, self.z_max)
 
-            indices = np.argsort(pc_z)
+            indices = np.argsort(pc_z)[::-1]
 
             pc_z = pc_z[indices]
             pc_x = pc_x[indices]
             pc_y = pc_y[indices]
 
             pixels = np.concatenate([pc_x.reshape(-1, 1), pc_y.reshape(-1, 1)], axis=-1)
+            b = np.ascontiguousarray(pixels).view(
+                np.dtype((np.void, pixels.dtype.itemsize * pixels.shape[1]))
+            )
+            values, unique_indices = np.unique(b, return_index=True)
+
+            pc_z = pc_z[unique_indices]
+            pixels = pixels[unique_indices]
 
             thetas = ((pc_z - self.z_min) / (self.z_max - self.z_min)).reshape(-1)
             image[pixels[:, 0], pixels[:, 1]] = thetas
             image = self.color_map(image)[:, :, :3] * 255.0
             image = image.astype(np.uint8)
-            return image
 
-        def compute_transorm(self, ref_2d_pts, tgt_2d_pts, ref_img, tgt_img):
+            # Save in a separate image the original corresponding 3D points for 3D registration
+            final_indices = np.arange(0, _filter.shape[0])[_filter][indices][unique_indices]
+            pc_points = pc[final_indices]
+            pc_image = np.zeros(image.shape, dtype=np.float32)
+            pc_image[pixels[:, 0], pixels[:, 1]] = pc_points
+
+            pc_indices = np.ones((image.shape[0], image.shape[1]), dtype=np.int64) * -1
+            pc_indices[pixels[:, 0], pixels[:, 1]] = final_indices
+
+            return image, {"points_3D": pc_image, "pc_indices": pc_indices}
+
+        def compute_transorm(self, ref_2d_pts, tgt_2d_pts,
+                             meta_data: Optional[dict] = None, **kwargs):
             """Computes the 3D Rigid transform associated to feature based 2D alignment"""
             # Estimate the 2D transform best matching the pair of points
             ref_2d_pts[:, 0] -= self.W // 2

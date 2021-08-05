@@ -11,7 +11,7 @@ from omegaconf import DictConfig
 
 # Project Imports
 from slam.common.pose import Pose
-from .utils import check_sizes, assert_debug
+from .utils import check_tensor, assert_debug
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -138,8 +138,8 @@ class _NeighborhoodScheme(_WLSScheme):
         if sigma is None:
             sigma = self._sigma
         assert_debug(target_points is not None and reference_points is not None)
-        check_sizes(target_points, [residuals.shape[0], residuals.shape[1], 3])
-        check_sizes(reference_points, [residuals.shape[0], residuals.shape[1], 3])
+        check_tensor(target_points, [residuals.shape[0], residuals.shape[1], 3])
+        check_tensor(reference_points, [residuals.shape[0], residuals.shape[1], 3])
         weights = torch.exp(- (target_points - reference_points).norm(dim=-1) ** 2 / sigma ** 2)
         cost = residuals * residuals * weights
         return cost
@@ -266,10 +266,10 @@ class LinearLeastSquare(LeastSquare):
             The tuple `x, loss` where `x` is the optimized set of parameters,
             And `loss` is the sum of the squared residuals
         """
-        check_sizes(A, [-1, -1])
+        check_tensor(A, [-1, -1])
         n, d = A.shape
-        check_sizes(b, [n])
-        check_sizes(x0, [d])
+        check_tensor(b, [n])
+        check_tensor(x0, [d])
 
         residuals = A @ x0 - b
         weights = self._ls_scheme.weights(residuals, **kwargs)
@@ -366,15 +366,15 @@ class PointToPlaneCost:
             pose (Pose): The Pose representation
             mask: (torch.Tensor): An optional mask to filter out points
         """
-        check_sizes(target_points, [-1, -1, 3])
+        check_tensor(target_points, [-1, -1, 3])
         b, n, _ = target_points.shape
-        check_sizes(ref_normals, [b, n, 3])
-        check_sizes(ref_points, [b, n, 3])
+        check_tensor(ref_normals, [b, n, 3])
+        check_tensor(ref_points, [b, n, 3])
         if mask is not None:
-            check_sizes(mask, [b, n, 1])
+            check_tensor(mask, [b, n, 1])
 
         def __jac_fun(params: torch.Tensor):
-            check_sizes(params, [b, pose.num_params()])
+            check_tensor(params, [b, pose.num_params()])
             jac_pose_to_matrix = pose.pose_matrix_jacobian(params)  # [B, 6, 4, 4]
 
             jacobians_rot = jac_pose_to_matrix[:, :, :3, :3]
@@ -409,15 +409,15 @@ class PointToPlaneCost:
             pose (Pose): The Pose representation
             mask: (torch.Tensor): An optional mask to filter out points
         """
-        check_sizes(target_points, [-1, -1, 3])
+        check_tensor(target_points, [-1, -1, 3])
         b, n, _ = target_points.shape
-        check_sizes(ref_normals, [b, n, 3])
-        check_sizes(ref_points, [b, n, 3])
+        check_tensor(ref_normals, [b, n, 3])
+        check_tensor(ref_points, [b, n, 3])
         if mask is not None:
-            check_sizes(mask, [b, n, 1])
+            check_tensor(mask, [b, n, 1])
 
         def __residual_fun(params: torch.Tensor):
-            check_sizes(params, [b, pose.num_params()])
+            check_tensor(params, [b, pose.num_params()])
             matrices = pose.build_pose_matrix(params)
             transformed_points = pose.apply_transformation(target_points, matrices)
 
@@ -447,3 +447,109 @@ class PointToPlaneCost:
              ref_points: torch.Tensor, ref_normals: torch.Tensor, mask: Optional[torch.Tensor] = None, **kwargs):
         """Returns the Point-to-Plane Loss"""
         return self.residuals(target_points, pose_params, ref_points, ref_normals, mask)
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+class PointToPointCost:
+    """Point-to-Point Cost function"""
+
+    def __init__(self, ls_scheme: str = "default", pose: Pose = Pose("euler"), **kwargs):
+        self.ls_scheme: _WLSScheme = _LS_SCHEME.get(ls_scheme, **kwargs)
+        self.pose = pose
+
+    @staticmethod
+    def get_residual_jac_fun(target_points: torch.Tensor,
+                             ref_points: torch.Tensor,
+                             pose: Pose = Pose("euler"),
+                             mask: Optional[torch.Tensor] = None, **kwargs):
+        """
+        Returns the Point-to-Point residual jacobian closure
+
+        The returned closure takes input a pose matrix or pose params tensor,
+        And returns the jacobian of the residual tensor at the pose_matrix position
+
+        Args:
+            target_points (torch.Tensor): The tensor of target points `(B, N, 3)`
+            ref_points (torch.Tensor): The tensor of reference points `(B, N, 3)`
+            pose (Pose): The Pose representation
+            mask: (torch.Tensor): An optional mask to filter out points
+        """
+        check_tensor(target_points, [-1, -1, 3])
+        b, n, _ = target_points.shape
+        check_tensor(ref_points, [b, n, 3])
+        if mask is not None:
+            check_tensor(mask, [b, n, 1])
+
+        def __jac_fun(params: torch.Tensor):
+            check_tensor(params, [b, pose.num_params()])
+            jac_pose_to_matrix = pose.pose_matrix_jacobian(params)  # [B, 6, 4, 4]
+
+            jacobians_rot = jac_pose_to_matrix[:, :, :3, :3]
+            jacobians_trans = jac_pose_to_matrix[:, :, :3, 3]
+            residuals_jac = torch.einsum("bpij,bnj->bpni", jacobians_rot, target_points) + \
+                            jacobians_trans.unsqueeze(2)  # [B, 6, N, 3]
+
+            points_diff = (pose.apply_transformation(target_points, params) - ref_points).unsqueeze(1)  # [B, 1, N, 3]
+            residuals_jac = (residuals_jac * points_diff).sum(dim=3)
+            residuals_jac = residuals_jac.reshape(b, pose.num_params(), n).permute(0, 2, 1)  # [B, N, 6]
+            if mask is not None:
+                residuals_jac *= mask.unsqueeze(1)
+
+            return residuals_jac
+
+        return __jac_fun
+
+    @staticmethod
+    def get_residual_fun(target_points: torch.Tensor,
+                         ref_points: torch.Tensor,
+                         pose: Pose = Pose("euler"),
+                         mask: Optional[torch.Tensor] = None, **kwargs):
+        """
+        Returns the Point-to-Plane residual closure
+
+        The returned closure takes input a pose matrix or pose params tensor,
+        And returns a tensor of corresponding residuals
+
+        Args:
+            target_points (torch.Tensor): The tensor of target points `(B, N, 3)`
+            ref_points (torch.Tensor): The tensor of reference points `(B, N, 3)`
+            pose (Pose): The Pose representation
+            mask: (torch.Tensor): An optional mask to filter out points
+        """
+        check_tensor(target_points, [-1, -1, 3])
+        b, n, _ = target_points.shape
+        check_tensor(ref_points, [b, n, 3])
+        if mask is not None:
+            check_tensor(mask, [b, n, 1])
+
+        def __residual_fun(params: torch.Tensor):
+            check_tensor(params, [b, pose.num_params()])
+            matrices = pose.build_pose_matrix(params)
+            transformed_points = pose.apply_transformation(target_points, matrices)
+
+            diff = (transformed_points - ref_points)
+            residuals = diff * diff
+            if mask is not None:
+                residuals *= mask
+            residuals = torch.sqrt(residuals.sum(dim=-1))
+            return residuals
+
+        return __residual_fun
+
+    def residuals(self, target_points: torch.Tensor, pose_params: torch.Tensor,
+                  ref_points: torch.Tensor,
+                  mask: Optional[torch.Tensor] = None, **kwargs):
+        """Returns the point to point residuals"""
+        residuals = PointToPointCost.get_residual_fun(target_points,
+                                                      ref_points,
+                                                      self.pose,
+                                                      mask)(pose_params)
+        weights = self.ls_scheme.weights(residuals.detach().abs(),
+                                         target_points=target_points,
+                                         ref_points=ref_points)
+        return weights * residuals
+
+    def loss(self, target_points: torch.Tensor, pose_params: torch.Tensor,
+             ref_points: torch.Tensor, mask: Optional[torch.Tensor] = None, **kwargs):
+        """Returns the Point-to-Point Loss"""
+        return self.residuals(target_points, pose_params, ref_points, mask)

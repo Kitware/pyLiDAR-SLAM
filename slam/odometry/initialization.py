@@ -162,7 +162,7 @@ if _with_cv2:
             pc_numpy = data_dict["numpy_pc_0"]
 
             # Build elevation image
-            image, kpts, desc = self.algorithm.compute_features(pc_numpy)
+            image, kpts, desc, _ = self.algorithm.compute_features(pc_numpy)
 
             # Extract KeyPoints and descriptors
             result = None

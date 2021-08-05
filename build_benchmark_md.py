@@ -1,5 +1,5 @@
 """
-This script builds a `nhcd_benchmark.md` file which aggregates the results saved on disk.
+This script builds a `<dataset>_benchmark.md` file which aggregates the results saved on disk.
 
 It searches for recursively for all results in a root directory, computes the trajectory error, ranks the results,
 And display writes the `nhcd_benchmark.md` files which contains the table aggregating all the results.
@@ -10,14 +10,10 @@ If many trajectories need to be evaluated, this script can take a long time.
 import sys
 import os
 from dataclasses import dataclass
-import logging
-from pathlib import Path
-import yaml
 
 import hydra
 from hydra.core.config_store import ConfigStore
 
-from slam.common.utils import assert_debug
 from slam.common.io import *
 from slam.eval.eval_odometry import *
 

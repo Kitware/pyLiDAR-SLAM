@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 import matplotlib.pyplot as plt
 
-from slam.common.utils import assert_debug, check_sizes
+from slam.common.utils import assert_debug, check_tensor
 from slam.common.io import poses_to_df, delimiter
 
 
@@ -178,8 +178,8 @@ def compute_are(relative_trajectory, relative_ground_truth) -> (float, float):
 
 
 def rescale_prediction(sequence_pred: np.ndarray, sequence_gt: np.ndarray) -> np.ndarray:
-    check_sizes(sequence_pred, [-1, 4, 4])
-    check_sizes(sequence_gt, [-1, 4, 4])
+    check_tensor(sequence_pred, [-1, 4, 4])
+    check_tensor(sequence_gt, [-1, 4, 4])
     rescaled_pred = []
     for i in range(len(sequence_pred)):
         poses_pred = sequence_pred[i]

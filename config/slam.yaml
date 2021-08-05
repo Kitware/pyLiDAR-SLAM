@@ -18,7 +18,7 @@ slam:
   backend: ???
 
   # Loop Closure Config
-  loop_closure:
+  loop_closure: ???
 
 
 defaults:
@@ -28,5 +28,7 @@ defaults:
   - slam/odometry/initialization: CV
   - slam/odometry/alignment: point_to_plane_GN
   - slam/preprocessing: none
+  - slam/loop_closure: none
+  - slam/backend: none
   - hydra/output: slam
 
