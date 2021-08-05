@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torchvision.models.resnet as models
 
-from slam.common.utils import assert_debug, check_sizes
+from slam.common.utils import assert_debug, check_tensor
 from slam.models.layers import ACTIVATIONS
 
 
@@ -96,7 +96,7 @@ class _ResNetEncoder(nn.Module):
 
     def forward_layers(self, x):
         # See note [TorchScript super()]
-        check_sizes(x, [-1, self.num_input_channels, -1, -1])
+        check_tensor(x, [-1, self.num_input_channels, -1, -1])
         x = self.conv1(x)
         x0 = self.relu(x)
 

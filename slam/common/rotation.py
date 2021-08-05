@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from slam.common.utils import assert_debug, check_sizes
+from slam.common.utils import assert_debug, check_tensor
 
 
 def Rx(phi):
@@ -13,11 +13,11 @@ def Rx(phi):
 
 def torch_rx(cos_phi, sin_phi):
     """
-    >>> check_sizes(torch_rx(torch.randn(6), torch.randn(6)), [6, 3, 3])
+    >>> check_tensor(torch_rx(torch.randn(6), torch.randn(6)), [6, 3, 3])
     """
-    check_sizes(cos_phi, [-1])
+    check_tensor(cos_phi, [-1])
     b = cos_phi.size(0)
-    check_sizes(sin_phi, [b])
+    check_tensor(sin_phi, [b])
 
     rot = torch.zeros(b, 3, 3, device=cos_phi.device, dtype=cos_phi.dtype)
     rot[:, 0, 0] = 1.0
@@ -37,9 +37,9 @@ def JRx(phi):
 
 
 def torch_jac_rx(cos_phi, sin_phi):
-    check_sizes(cos_phi, [-1])
+    check_tensor(cos_phi, [-1])
     b = cos_phi.size(0)
-    check_sizes(sin_phi, [b])
+    check_tensor(sin_phi, [b])
 
     rot = torch.zeros(b, 3, 3, device=cos_phi.device, dtype=cos_phi.dtype)
     rot[:, 0, 0] = 0.0
@@ -59,11 +59,11 @@ def Ry(theta):
 
 def torch_ry(cos_phi, sin_phi):
     """
-    >>> check_sizes(torch_ry(torch.randn(6), torch.randn(6)), [6, 3, 3])
+    >>> check_tensor(torch_ry(torch.randn(6), torch.randn(6)), [6, 3, 3])
     """
-    check_sizes(cos_phi, [-1])
+    check_tensor(cos_phi, [-1])
     b = cos_phi.size(0)
-    check_sizes(sin_phi, [b])
+    check_tensor(sin_phi, [b])
 
     rot = torch.zeros(b, 3, 3, device=cos_phi.device, dtype=cos_phi.dtype)
     rot[:, 0, 0] = cos_phi
@@ -83,9 +83,9 @@ def JRy(theta):
 
 
 def torch_jac_ry(cos_theta, sin_theta):
-    check_sizes(cos_theta, [-1])
+    check_tensor(cos_theta, [-1])
     b = cos_theta.size(0)
-    check_sizes(sin_theta, [b])
+    check_tensor(sin_theta, [b])
 
     rot = torch.zeros(b, 3, 3, device=cos_theta.device, dtype=cos_theta.dtype)
     rot[:, 0, 0] = - sin_theta
@@ -103,9 +103,9 @@ def Rz(psi):
 
 
 def torch_rz(cos_psi, sin_psi):
-    check_sizes(cos_psi, [-1])
+    check_tensor(cos_psi, [-1])
     b = cos_psi.size(0)
-    check_sizes(sin_psi, [b])
+    check_tensor(sin_psi, [b])
 
     rot = torch.zeros(b, 3, 3, device=cos_psi.device, dtype=cos_psi.dtype)
     rot[:, 0, 0] = cos_psi
@@ -123,9 +123,9 @@ def JRz(psi):
 
 
 def torch_jac_rz(cos_psi, sin_psi):
-    check_sizes(cos_psi, [-1])
+    check_tensor(cos_psi, [-1])
     b = cos_psi.size(0)
-    check_sizes(sin_psi, [b])
+    check_tensor(sin_psi, [b])
 
     rot = torch.zeros(b, 3, 3, device=cos_psi.device, dtype=cos_psi.dtype)
     rot[:, 0, 0] = -sin_psi
@@ -171,7 +171,7 @@ def torch_euler_jacobian(angles, convention="xyz"):
 
     """
     assert_debug(convention == "xyz")
-    check_sizes(angles, [-1, 3])
+    check_tensor(angles, [-1, 3])
     torch_cos = torch.cos(angles)
     torch_sin = torch.sin(angles)
 
@@ -202,7 +202,7 @@ def torch_pose_matrix_jacobian_euler(pose_params, convention="xyz"):
 
     """
     assert_debug(convention == "xyz")
-    check_sizes(pose_params, [-1, 6])
+    check_tensor(pose_params, [-1, 6])
     n = pose_params.size(0)
     euler_jac = torch_euler_jacobian(pose_params[:, 3:], convention)
     pose_matrix_jac = torch.zeros(n, 6, 4, 4,
@@ -224,7 +224,7 @@ def is_rotation_matrix(rot, eps=1.e-5):
         n = np.linalg.norm(id3 - rot_t_rot)
         return n < eps
     elif isinstance(rot, torch.Tensor):
-        check_sizes(rot, [-1, 3, 3])
+        check_tensor(rot, [-1, 3, 3])
         rot_t = rot.transpose(1, 2)
         rot_t_rot = rot @ rot_t
         id3 = torch.eye(3, dtype=rot.dtype, device=rot.device)

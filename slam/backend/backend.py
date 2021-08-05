@@ -1,3 +1,4 @@
+import logging
 import re
 from abc import ABC
 from enum import Enum
@@ -11,7 +12,7 @@ from omegaconf import DictConfig
 
 # Project Imports
 from slam.common.modules import _with_g2o
-from slam.common.utils import assert_debug, check_sizes, ObjectLoaderEnum
+from slam.common.utils import assert_debug, check_tensor, ObjectLoaderEnum
 from slam.eval.eval_odometry import compute_relative_poses
 
 
@@ -163,15 +164,21 @@ class Backend(ABC):
 if _with_g2o:
     import g2o
 
+    from slam.viz import _with_viz3d
+
+    if _with_viz3d:
+        from viz3d.window import OpenGLWindow
+
 
     @dataclass
     class GraphSLAMConfig(BackendConfig):
-
         type = "graph_slam"
         initialize_world_coordinates: bool = True
         fix_first_frame: bool = True
         max_optim_iterations: int = 100
         online_optimization: bool = True
+
+        debug: bool = True
 
 
     class GraphSLAM(Backend):
@@ -198,6 +205,9 @@ if _with_g2o:
             self.loop_closure_constraints: Optional[dict] = None
             self.absolute_pose_constraints: Optional[dict] = None
 
+            self.window = None
+            self.with_window = config.debug and _with_viz3d
+
         @property
         def robust_kernel(self):
             """A Robust Kernel for Least-Square minimization"""
@@ -216,6 +226,10 @@ if _with_g2o:
             self.vertices = None
             self.odometry_poses = None
             self._num_poses = 0
+            if _with_viz3d:
+                if self.window is not None:
+                    self.window.close(True)
+                    self.window = None
 
         def init(self):
             super().init()
@@ -236,9 +250,13 @@ if _with_g2o:
                                   self.fix_first_frame)
                 self.odometry_poses = [np.eye(4)]
 
+            if self.with_window is not None:
+                self.window = OpenGLWindow()
+                self.window.init()
+
         def __add_vertex(self, v_id, pose: np.ndarray, fixed: bool = False, gps_vertex: bool = False):
             assert_debug(v_id not in self.vertices)
-            check_sizes(pose, [4, 4])
+            check_tensor(pose, [4, 4])
             v_se3 = g2o.VertexSE3()
             v_se3.set_id(v_id)
             v_se3.set_estimate(
@@ -264,6 +282,7 @@ if _with_g2o:
 
         def next_frame(self, data_dict: dict):
             """Processes a next frame by adding all trajectory constraints to the graph slam"""
+            assert isinstance(self.config, GraphSLAMConfig)
             constraints = self.search_constraints(data_dict)
 
             do_update: bool = False
@@ -305,7 +324,7 @@ if _with_g2o:
                 _relative_constraints.append((i_gps_id, i_pid, identity, information))
 
             # Add Loop Closure Constraints
-            for constraint in self._constraints["se3_loop_closure"]:
+            for constraint in constraints["se3_loop_closure"]:
                 i, j, mat_j_to_i, information = constraint
                 self.loop_closure_constraints[(i, j)] = (mat_j_to_i, information)
 
@@ -357,7 +376,11 @@ if _with_g2o:
                 _constraints_indices.append([i, j])
 
             if do_update:
+                logging.info(f"Updating the Pose Graph for {self.config.max_optim_iterations} iterations.")
                 self.optimize(self.config.max_optim_iterations)
+
+                if self.with_window and self.window is not None:
+                    self.window.set_cameras(0, self.absolute_poses().astype(np.float32))
 
         def optimize(self, max_num_epochs: int = 20):
             if not self.config.online_optimization:
@@ -387,6 +410,9 @@ class BACKEND(ObjectLoaderEnum, Enum):
     if _with_g2o:
         graph_slam = (GraphSLAM, GraphSLAMConfig)
 
-    @classmethod
-    def type_name(cls):
-        return "type"
+    none = (None, None)
+
+
+@classmethod
+def type_name(cls):
+    return "type"
