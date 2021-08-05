@@ -1,6 +1,6 @@
 import torch
 
-from slam.common.utils import assert_debug, check_sizes
+from slam.common.utils import assert_debug, check_tensor
 from slam.viz.color_map import tensor_to_image
 import numpy as np
 import logging

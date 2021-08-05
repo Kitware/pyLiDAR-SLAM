@@ -1,10 +1,10 @@
 import torch
 
-from slam.common.rotation import torch_euler_to_mat, torch_mat_to_euler, torch_pose_matrix_jacobian_euler
-from slam.common.utils import assert_debug, check_sizes
 import numpy as np
 from scipy.spatial.transform.rotation import Rotation as R, Slerp
 from scipy.interpolate.interpolate import interp1d
+from slam.common.utils import assert_debug, check_tensor
+from slam.common.rotation import torch_euler_to_mat, torch_mat_to_euler, torch_pose_matrix_jacobian_euler
 
 
 class PosesInterpolator:
@@ -16,8 +16,8 @@ class PosesInterpolator:
     """
 
     def __init__(self, poses: np.ndarray, timestamps: np.ndarray):
-        check_sizes(poses, [-1, 4, 4])
-        check_sizes(timestamps, [-1])
+        check_tensor(poses, [-1, 4, 4], np.ndarray)
+        check_tensor(timestamps, [-1], np.ndarray)
         self.min_timestamp = timestamps.min()
         self.max_timestamp = timestamps.max()
 
@@ -36,9 +36,21 @@ class PosesInterpolator:
         return poses
 
 
+def transform_pointcloud(pointcloud: np.ndarray, tr: np.ndarray):
+    """
+    Applies the transform `tr` to the pointcloud
+
+    Parameters
+    ----------
+    pointcloud : np.ndarray (N, 3)
+    tr : np.ndarray (4, 4)
+    """
+    return np.einsum("ij,nj->ni", tr[:3, :3], pointcloud) + tr[:3, 3].reshape(1, 3)
+
+
 class Pose(object):
     """
-    A Pose is a tool to interpret tensors of float as poses
+    A Pose is a tool to interpret tensors of float as SE3 poses
 
     Parameters
     ----------
@@ -95,7 +107,7 @@ class Pose(object):
         """
         if len(params_tensor.shape) == 2:
             params_tensor = self.build_pose_matrix(params_tensor)
-        check_sizes(params_tensor, [-1, 4, 4])
+        check_tensor(params_tensor, [-1, 4, 4])
 
         inverse = torch.zeros_like(params_tensor)
         rt = params_tensor[:, :3, :3].permute(0, 2, 1)
@@ -118,7 +130,7 @@ class Pose(object):
         torch.Tensor
             The tensor of matrix
         """
-        check_sizes(params_tensor, [-1, self.num_rot_params() + 3])
+        check_tensor(params_tensor, [-1, self.num_rot_params() + 3])
         b = params_tensor.size(0)
         rotation_tensor = self.rot_matrix_from_params(params_tensor[:, 3:])
         pose = torch.cat([rotation_tensor, torch.zeros(b, 1, 3,
@@ -134,7 +146,7 @@ class Pose(object):
         if len(pose.shape) == 3 and pose.size(1) == 4 and pose.size(2) == 4:
             t_pose_matrix = pose
         else:
-            check_sizes(pose, [-1, self.num_rot_params() + 3])
+            check_tensor(pose, [-1, self.num_rot_params() + 3])
             t_pose_matrix = self.build_pose_matrix(pose)
         return t_pose_matrix
 

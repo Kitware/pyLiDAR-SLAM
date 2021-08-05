@@ -167,13 +167,29 @@ def voxel_normal_distribution(pointcloud, voxel_hashes, is_sorted: bool = False)
     return np.array(voxel_sizes), np.array(means), np.array(covs), voxel_ids
 
 
-def grid_sample(pointcloud, voxel_hashes):
+def sample_from_hashes(pointcloud, hashes):
+    """Sample one point per hash value, returns the sample points and the indices of the sampled points
+
+    Args:
+        pointcloud (np.ndarray): The input pointcloud `(n, 3)` [np.float32, np.float64]
+        hashes (np.ndarray): The hashes `(n,)` [np.int64]
+    """
+    _, unique_indices = np.unique(hashes, return_index=True)
+
+    return pointcloud[unique_indices], unique_indices
+
+
+def grid_sample(pointcloud, voxel_size: float):
     """Sample one point per voxel hash, returns the sample points and the indices of the sampled points
 
     Args:
         pointcloud (np.ndarray): The input pointcloud `(n, 3)` [np.float32, np.float64]
-        voxel_hashes (np.ndarray): The voxel hashes `(n,)` [np.int64]
+        voxel_size (np.ndarray): The size of a voxel
     """
-    _, unique_indices = np.unique(voxel_hashes, return_index=True)
+    voxels = voxelise(pointcloud, voxel_size)
+    voxelhashes = np.zeros((pointcloud.shape[0],), dtype=np.int64)
+    voxel_hashing(voxels, voxelhashes)
+
+    _, unique_indices = np.unique(voxelhashes, return_index=True)
 
     return pointcloud[unique_indices], unique_indices

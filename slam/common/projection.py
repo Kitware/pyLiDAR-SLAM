@@ -5,7 +5,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 
 from functools import lru_cache
-from slam.common.utils import check_sizes, assert_debug
+from slam.common.utils import check_tensor, assert_debug
 
 
 def torch__spherical_projection(t_pointcloud: torch.Tensor,
@@ -43,7 +43,7 @@ def torch__spherical_projection(t_pointcloud: torch.Tensor,
         t_row : the pixels' rows as a float for each point in the point cloud
         t_col : the pixels' cols as a float for each point in the point cloud
     """
-    check_sizes(t_pointcloud, [-1, -1, 3])
+    check_tensor(t_pointcloud, [-1, -1, 3])
     fov_up = min_vertical_fov / 180.0 * np.pi
     fov_down = max_vertical_fov / 180.0 * np.pi
     fov = abs(fov_down) + abs(fov_up)
@@ -89,7 +89,7 @@ def xyz_conversion(t_point_cloud: (torch.Tensor, np.ndarray)) -> torch.Tensor:
         assert_debug(c >= 3)
         return t_point_cloud[:, :3]
     else:
-        check_sizes(t_point_cloud, [-1, -1, -1])
+        check_tensor(t_point_cloud, [-1, -1, -1])
         b, n, c = t_point_cloud.shape
         assert_debug(c >= 3)
         return t_point_cloud[:, :, :3]
@@ -108,9 +108,9 @@ def depth_conversion(t_point_cloud: (torch.Tensor, np.ndarray)) -> (torch.Tensor
     -------
     (torch.Tensor, np.ndarray) : [B, N, 1]
         A Tensor of the same type as the input tensor
-    >>> check_sizes(depth_conversion(torch.randn(4, 10, 3)), [4, 10, 1])
-    >>> check_sizes(depth_conversion(np.random.randn(4, 10, 3)), [4, 10, 1])
-    >>> check_sizes(depth_conversion(np.random.randn(40, 3)), [40, 1])
+    >>> check_tensor(depth_conversion(torch.randn(4, 10, 3)), [4, 10, 1])
+    >>> check_tensor(depth_conversion(np.random.randn(4, 10, 3)), [4, 10, 1])
+    >>> check_tensor(depth_conversion(np.random.randn(40, 3)), [40, 1])
     """
     if len(t_point_cloud.shape) == 2:
         assert_debug(isinstance(t_point_cloud, np.ndarray) and t_point_cloud.shape[1] >= 3)
@@ -118,7 +118,7 @@ def depth_conversion(t_point_cloud: (torch.Tensor, np.ndarray)) -> (torch.Tensor
         return np.linalg.norm(t_point_cloud, ord=2, axis=1, keepdims=True)
 
     else:
-        check_sizes(t_point_cloud, [-1, -1, -1])
+        check_tensor(t_point_cloud, [-1, -1, -1])
         if isinstance(t_point_cloud, np.ndarray):
             return np.linalg.norm(t_point_cloud[:, :, :3], ord=2, axis=2, keepdims=True)
         else:
@@ -154,8 +154,8 @@ def build_spherical_image(t_point_cloud: torch.Tensor,
         a point cloud with the specific channels to put in the image [B, N, C_dest]
 
     """
-    check_sizes(destination, [-1, 3, -1, -1])
-    check_sizes(t_point_cloud, [-1, -1, -1])
+    check_tensor(destination, [-1, 3, -1, -1])
+    check_tensor(t_point_cloud, [-1, -1, -1])
     # Extract channels to put in destination
     channels_extracted = conversion_function(t_point_cloud)
     b, n, c = t_point_cloud.shape
@@ -367,7 +367,7 @@ class Projector(ABC):
         width = self.swap(width=width)
         transform = self.swap(transform=transform)
 
-        check_sizes(pointcloud, [-1, -1, -1])
+        check_tensor(pointcloud, [-1, -1, -1])
         b, n, _ = pointcloud.shape
         image_channels = pointcloud
         if transform is not None:
@@ -475,7 +475,7 @@ class SphericalProjector(Projector):
             First coordinates are the row values, Second are the column values
 
         """
-        check_sizes(pointcloud, [-1, -1, -1])
+        check_tensor(pointcloud, [-1, -1, -1])
         height: int = self.swap(height=height)
         width = self.swap(width=width)
         up_fov = self.swap(up_fov=up_fov)
