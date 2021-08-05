@@ -6,7 +6,7 @@ from functools import lru_cache
 import numpy as np
 
 # Project Imports
-from slam.common.utils import batched, assert_debug, check_sizes
+from slam.common.utils import batched, assert_debug, check_tensor
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -195,7 +195,7 @@ def projection_map_to_points(pmap: torch.Tensor, dim=1, num_channels: int = 3) -
     -------
     points: torch.Tensor [..., H * W, 3]
     """
-    check_sizes(pmap, [*([-1] * dim), *[num_channels, -1, -1]])
+    check_tensor(pmap, [*([-1] * dim), *[num_channels, -1, -1]])
     shape = pmap.shape
     permuted = pmap.permute(*[i for i in range(dim)], dim + 1, dim + 2, dim)
     reshaped: torch.Tensor = permuted.reshape(*[shape[i] for i in range(dim)],
@@ -226,7 +226,7 @@ def points_to_pmap(points: torch.Tensor,
     vertex_maps : torch.Tensor [K, num_channels, h, w]
 
     """
-    check_sizes(points, [-1, num_channels])
+    check_tensor(points, [-1, num_channels])
     n = points.size(0)
     assert_debug(n % h == 0)
     assert_debug(n % (h * w) == 0)
@@ -365,7 +365,7 @@ def conv_neighborhood(image_tensor: torch.Tensor, kernel_size: int = 3):
         neighbors, neighborhood  : torch.Tensor, torch.Tensor [B, K * K, C, H, W], [B, K * K, 1, H, W]
             A weigh matrix for a convolution product which extracts all points in the neighbor
     """
-    check_sizes(image_tensor, [-1, -1, -1, -1])
+    check_tensor(image_tensor, [-1, -1, -1, -1])
     b, c, h, w = image_tensor.shape
     weights_neighborhood, weight_neighbors = neighborhood_kernel(kernel_size,
                                                                  c,

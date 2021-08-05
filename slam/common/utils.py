@@ -7,6 +7,9 @@ import yaml
 import torch
 import numpy as np
 from omegaconf import DictConfig, MISSING
+from typeguard import check_type
+
+TensorType = Union[torch.Tensor, np.ndarray]
 
 
 def get_git_hash() -> Optional[str]:
@@ -48,7 +51,7 @@ def sizes_match(tensor, sizes: list) -> bool:
     return True
 
 
-def check_sizes(tensor: (torch.Tensor, np.ndarray), sizes: list):
+def check_tensor(tensor: (torch.Tensor, np.ndarray), sizes: list, tensor_type: Optional[type] = TensorType):
     """
     Checks the size of a tensor along all its dimensions, against a list of sizes
 
@@ -56,15 +59,19 @@ def check_sizes(tensor: (torch.Tensor, np.ndarray), sizes: list):
     For each dimension, the tensor must have the same size as the corresponding entry in the list
     A size of -1 in the list matches all sizes
 
+    Optionally it checks the type of the tensor (either np.ndarray or torch.Tensor)
+
     Any Failure raises an AssertionError
 
-    >>> check_sizes(torch.randn(10, 3, 4), [10, 3, 4])
-    >>> check_sizes(torch.randn(10, 3, 4), [-1, 3, 4])
-    >>> check_sizes(np.random.randn(2, 3, 4), [2, 3, 4])
+    >>> check_tensor(torch.randn(10, 3, 4), [10, 3, 4])
+    >>> check_tensor(torch.randn(10, 3, 4), [-1, 3, 4])
+    >>> check_tensor(np.random.randn(2, 3, 4), [2, 3, 4])
     >>> #torch__check_sizes(torch.randn(10, 3, 4), [9, 3, 4]) # --> throws an AssertionError
     """
     assert_debug(sizes_match(tensor, sizes),
                  f"[BAD TENSOR SHAPE] Wrong tensor shape got {tensor.shape} expected {sizes}")
+    if tensor_type is not None:
+        check_type("tensor", tensor, tensor_type)
 
 
 def _decorator(d):
@@ -84,7 +91,7 @@ def check_input_size(shape: list):
     @_decorator
     def __decorator(func):
         def _wrapper(array, **kwargs):
-            check_sizes(array, shape)
+            check_tensor(array, shape)
             return func(array, **kwargs)
 
         return _wrapper
@@ -137,7 +144,7 @@ def batched(*shapes, torch_compatible: bool = True, unwrap_output_tensors: bool 
                 if extended:
                     tensor = __wrap(tensor)
                     batched_args[idx] = tensor
-                check_sizes(tensor, shape)
+                check_tensor(tensor, shape)
 
             result = func(*batched_args, **kwargs)
             if extended and unwrap_output_tensors:

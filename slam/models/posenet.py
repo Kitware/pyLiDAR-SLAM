@@ -10,7 +10,7 @@ from hydra.conf import ConfigStore
 from ._resnet import ResNetEncoder
 from .layers import ACTIVATIONS
 from slam.common.pose import Pose
-from slam.common.utils import assert_debug, check_sizes
+from slam.common.utils import assert_debug, check_tensor
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -52,7 +52,7 @@ class PoseResNet(nn.Module):
         if isinstance(frames, list):
             assert_debug(len(frames) == 1, "Multiple input not supported for current PoseNet version")
             frames = frames[0]
-        check_sizes(frames, [-1, self.sequence_len, self.num_input_channels, -1, -1])
+        check_tensor(frames, [-1, self.sequence_len, self.num_input_channels, -1, -1])
         features = self.resnet_encoder(frames.reshape(-1, self.num_input_channels * self.sequence_len,
                                                       frames.size(3),
                                                       frames.size(4)))

@@ -11,5 +11,6 @@ tensorboard
 numba
 open3d # For IO + Visualization purposes
 torchvision
+typeguard
 
 # cv2 -- Optional : not having OpenCV installed will deactivate some functionalities
