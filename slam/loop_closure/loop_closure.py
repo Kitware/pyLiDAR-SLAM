@@ -12,14 +12,13 @@ from hydra.conf import dataclass, MISSING, ConfigStore, field
 
 # Project Imports
 from slam.backend.backend import Backend
-from slam.common.pointcloud import sample_from_hashes, voxel_hashing, grid_sample
+from slam.common.pointcloud import grid_sample
 from slam.common.pose import transform_pointcloud
-from slam.common.registration import ElevationImageRegistration, weighted_procrustes
+from slam.common.registration import ElevationImageRegistration
 from slam.common.utils import assert_debug, check_tensor, ObjectLoaderEnum
 from slam.odometry.alignment import GNPointToPointConfig, GaussNewtonPointToPointAlignment
 
-from slam.viz import _with_cv2
-
+from slam.common.modules import _with_cv2
 import open3d as o3d
 
 
@@ -122,19 +121,6 @@ if _with_cv2:
     LocalMapData = namedtuple("LocalMapData", ['keypoints', 'descriptors', 'pointcloud', 'frame_id'])
 
 
-    def draw_registration_result(source, target, transformation):
-        source_temp = copy.deepcopy(source)
-        target_temp = copy.deepcopy(target)
-        source_temp.paint_uniform_color([1, 0.706, 0])
-        target_temp.paint_uniform_color([0, 0.651, 0.929])
-        source_temp.transform(transformation)
-        o3d.visualization.draw_geometries([source_temp, target_temp],
-                                          zoom=0.4459,
-                                          front=[0.9288, -0.2951, -0.2242],
-                                          lookat=[1.6784, 2.0612, 1.4451],
-                                          up=[-0.3402, -0.9189, -0.1996])
-
-
     class ElevationImageLoopClosure(LoopClosure):
         """
         An Implementation of a Loop Detection and Estimation Algorithm
@@ -198,7 +184,7 @@ if _with_cv2:
                 source, target, self.config.icp_distance_threshold, initial_transform.astype(np.float64),
                 o3d.pipelines.registration.TransformationEstimationPointToPoint())
 
-            return result.transformation, candidate_pc, target_pc
+            return np.linalg.inv(result.transformation), candidate_pc, target_pc
 
         def _match_candidates(self, candidate_ids, feat, desc, points, frame_id, data_dict: dict):
             assert isinstance(self.config, EILoopClosureConfig)
@@ -235,6 +221,7 @@ if _with_cv2:
             else:
                 relative_pose = np.eye(4, dtype=np.float64)
 
+            # Update the absolute pose of the last inserted pointcloud
             self.data.last_inserted_pose = self.data.last_inserted_pose.dot(relative_pose)
 
             if self.pointcloud_key() not in data_dict:
