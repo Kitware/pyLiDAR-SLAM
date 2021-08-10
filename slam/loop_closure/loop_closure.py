@@ -19,13 +19,16 @@ from hydra.conf import dataclass, MISSING, ConfigStore, field
 
 # Project Imports
 from slam.backend.backend import Backend
-from slam.common.pointcloud import sample_from_hashes, voxel_hashing, grid_sample
+from slam.common.pointcloud import grid_sample
 from slam.common.pose import transform_pointcloud
+<<<<<<< HEAD
 from slam.common.registration import ElevationImageRegistration, weighted_procrustes
 from slam.common.utils import assert_debug, check_tensor, ObjectLoaderEnum
 from slam.odometry.alignment import GNPointToPointConfig, GaussNewtonPointToPointAlignment
+=======
+from slam.common.registration import ElevationImageRegistration
+>>>>>>> [fix]
 from slam.common.utils import assert_debug, check_tensor
-from slam.odometry.alignment import GNPointToPointConfig, GaussNewtonPointToPointAlignment
 
 from slam.viz import _with_cv2
 
@@ -136,6 +139,9 @@ if _with_cv2:
     LocalMapData = namedtuple("LocalMapData", ['keypoints', 'descriptors', 'pointcloud', 'frame_id'])
 
     if _with_o3d:
+        import open3d as o3d
+
+
         def draw_registration_result(source, target, transformation):
             source_temp = copy.deepcopy(source)
             target_temp = copy.deepcopy(target)
