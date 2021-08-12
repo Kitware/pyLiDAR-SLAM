@@ -349,6 +349,7 @@ if _with_cv2:
     # Add Elevation Image to the Config Store
     cs = ConfigStore.instance()
     cs.store(name="elevation_image", group="slam/loop_closure", node=EILoopClosureConfig)
+    cs.store(name="none", group="slam/loop_closure", node=None)
 
 
 # ----------------------------------------------------------------------------------------------------------------------

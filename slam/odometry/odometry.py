@@ -15,7 +15,6 @@ from slam.odometry.local_map import LocalMapConfig
 class OdometryConfig:
     """Abstract class which should be extended as config by childs of OdometryAlgorithm"""
     algorithm: str = MISSING
-    local_map: LocalMapConfig = MISSING
 
 
 # ----------------------------------------------------------------------------------------------------------------------
