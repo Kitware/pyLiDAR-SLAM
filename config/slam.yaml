@@ -20,14 +20,9 @@ slam:
   # Loop Closure Config
   loop_closure: ???
 
-
 defaults:
   - slam/odometry: icp_odometry
   - dataset: kitti
-  - slam/odometry/local_map: kdtree
-  - slam/odometry/initialization: CV
-  - slam/odometry/alignment: point_to_plane_GN
-  - slam/preprocessing: none
   - slam/loop_closure: none
   - slam/backend: none
   - hydra/output: slam
