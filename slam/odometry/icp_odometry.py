@@ -1,6 +1,9 @@
 # Project Imports
 from typing import Optional
 
+from hydra.core.config_store import ConfigStore
+
+from slam.common.utils import RuntimeDefaultDict
 from slam.common.geometry import projection_map_to_points, mask_not_null
 from slam.common.pose import Pose
 from slam.common.projection import Projector
@@ -23,8 +26,13 @@ if _with_viz3d:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
+@RuntimeDefaultDict.runtime_defaults({"preprocessing": "slam/odometry/preprocessing/none",
+                                      "initialization": "slam/odometry/initialization/CV",
+                                      "local_map": "slam/odometry/local_map/kdtree",
+                                      "alignment": "slam/odometry/alignment/point_to_plane_GN"
+                                      })
 @dataclass
-class ICPFrameToModelConfig(OdometryConfig):
+class ICPFrameToModelConfig(OdometryConfig, RuntimeDefaultDict):
     """
     The Configuration for the Point-To-Plane ICP based Iterative Least Square estimation of the pose
     """
@@ -57,6 +65,10 @@ class ICPFrameToModelConfig(OdometryConfig):
     viz_num_pcs: int = 50
 
 
+cs = ConfigStore.instance()
+cs.store(name="icp_odometry", group="slam/odometry", node=ICPFrameToModelConfig)
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 class ICPFrameToModel(OdometryAlgorithm):
     """
@@ -66,6 +78,9 @@ class ICPFrameToModel(OdometryAlgorithm):
     def __init__(self, config: ICPFrameToModelConfig,
                  projector: Projector = None, pose: Pose = Pose("euler"),
                  device: torch.device = torch.device("cpu"), **kwargs):
+        if not isinstance(config, ICPFrameToModelConfig):
+            config = ICPFrameToModelConfig(**config)
+        config = config.completed()
         OdometryAlgorithm.__init__(self, config)
 
         assert_debug(projector is not None)

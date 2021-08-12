@@ -1,12 +1,12 @@
+import dataclasses
 import functools
 import subprocess
-from abc import abstractmethod
 
 from typing import Optional, Union
 import yaml
 import torch
 import numpy as np
-from omegaconf import DictConfig, MISSING
+from omegaconf import MISSING, DictConfig
 from typeguard import check_type
 
 TensorType = Union[torch.Tensor, np.ndarray]
@@ -196,6 +196,67 @@ def modify_nan_pmap(tensor: torch.Tensor, default_value: float = 0.0):
     return new_tensor
 
 
+class RuntimeDefaultDict:
+    """
+    A Utility class which allows to define at runtime a set of default list for attributes of a dataclass
+
+    This allows to complete hydra's default system which either requires to define all defaults at the root
+    Or to specify them in the root config file (which complicates non rigid tree paths)
+
+    Note: The dict `_default_dict` is shared between all instances
+    """
+    _default_dict: dict = {}  # A dict attribute name -> default node (which are read from hydra's ConfigStore)
+
+    @staticmethod
+    def runtime_defaults(attr_to_cs_path: dict):
+        """A Decorator which adds a set of defaults a dataclass"""
+
+        def wrap(cls):
+            assert_debug(issubclass(cls, RuntimeDefaultDict))
+            for attr, path in attr_to_cs_path.items():
+                key = RuntimeDefaultDict.attribute_key(cls, attr)
+                if key not in RuntimeDefaultDict._default_dict:
+                    RuntimeDefaultDict._default_dict[key] = path
+            return cls
+
+        return wrap
+
+    @staticmethod
+    def attribute_key(cls, attribute: str):
+        assert_debug(dataclasses.is_dataclass(cls), "Only Dataclasses can inherit from WithDefaultList")
+        assert_debug(hasattr(cls, attribute), f"The dataclass does not contain the attribute {attribute}")
+        return f"{str(cls)}@{attribute}"
+
+    def is_complete(self):
+        """Returns whether the object contains any missing fields"""
+        assert_debug(dataclasses.is_dataclass(self), "Only Dataclasses can inherit from WithDefaultList")
+        for field in dataclasses.fields(self):
+            assert isinstance(field, dataclasses.Field)
+            value = getattr(self, field.name)
+            if value == MISSING:
+                return False
+
+        return True
+
+    def complete_defaults(self):
+        from hydra.core.config_store import ConfigStore
+        assert_debug(dataclasses.is_dataclass(self), "Only Dataclasses can inherit from WithDefaultList")
+        cs = ConfigStore.instance()
+        for field in dataclasses.fields(self):
+            key = self.attribute_key(type(self), field.name)
+            if key not in self._default_dict:
+                continue
+
+            cd_path = self._default_dict[key]
+            config_node = cs.load(f"{cd_path}.yaml")
+            assert_debug(config_node is not None, "Could not find any matching defaults in the config store.")
+            setattr(self, field.name, config_node.node)
+
+    def completed(self):
+        self.complete_defaults()
+        return self
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 class ObjectLoaderEnum:
     """
@@ -210,6 +271,9 @@ class ObjectLoaderEnum:
         else:
             assert_debug(hasattr(config, cls.type_name()), f"The object {config} is not a valid config.")
             _type = getattr(config, cls.type_name())
+
+        assert_debug(cls.type_name() in config, f"The config does not contains the key : '{cls.type_name()}'")
+        _type = config.get(cls.type_name())
         assert_debug(hasattr(cls, "__members__"))
         assert_debug(_type in cls.__members__,
                      f"Unknown type `{_type}`. Existing members are : {cls.__members__.keys()}")

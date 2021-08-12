@@ -6,25 +6,24 @@ from typing import Dict, Optional, Any
 import torch
 
 # Hydra and OmegaConf
-from dataclasses import field, MISSING
+from dataclasses import field
 from hydra.conf import dataclass
 
 # Project Imports
 from hydra.core.config_store import ConfigStore
-from omegaconf import OmegaConf
 
 from slam.common.optimization import GaussNewton, PointToPlaneCost, PointToPointCost
 from slam.common.pose import Pose
 
 # ----------------------------------------------------------------------------------------------------------------------
 from slam.common.registration import weighted_procrustes
-from slam.common.utils import assert_debug
+from slam.common.utils import assert_debug, ObjectLoaderEnum
 
 
 @dataclass
 class RigidAlignmentConfig:
     """Configuration for the alignments used by ICP methods"""
-    mode: str = MISSING
+    mode: str = "???"
 
     pose: str = "euler"  # The pose representation
     scheme: str = "huber"  # The weighting scheme for robust alignment
@@ -72,7 +71,6 @@ class GaussNewtonPointToPlaneConfig(RigidAlignmentConfig):
     """Configuration for a Gauss-Newton based Point-to-Plane rigid alignment"""
 
     mode: str = "point_to_plane_gauss_newton"
-    num_gn_iters: int = 1
 
     # The configuration for the Gauss-Newton algorithm
     gauss_newton_config: Dict[str, Any] = field(default_factory=lambda: dict(max_iters=1))
@@ -198,15 +196,12 @@ cs.store(group="slam/odometry/alignment", name="point_to_point_GN", node=GNPoint
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class RIGID_ALIGNMENT(Enum):
+class RIGID_ALIGNMENT(ObjectLoaderEnum, Enum):
     """A Convenient Enum to load the"""
+
     point_to_plane_gauss_newton = (GaussNewtonPointToPlaneAlignment, GaussNewtonPointToPlaneConfig)
+    point_to_point_gauss_newton = (GaussNewtonPointToPointAlignment, GNPointToPointConfig)
 
-    # TODO : point_to_plane_linear
-
-    @staticmethod
-    def load(config: RigidAlignmentConfig, **kwargs) -> RigidAlignment:
-        """Returns a RigidAlignment instance loaded from the config"""
-        assert_debug(config.mode in RIGID_ALIGNMENT.__members__)
-        _class, _config = RIGID_ALIGNMENT.__members__[config.mode].value
-        return _class(_config(**config))
+    @classmethod
+    def type_name(cls):
+        return "mode"
