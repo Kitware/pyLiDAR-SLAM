@@ -1,20 +1,16 @@
 from hydra.core.config_store import ConfigStore
 
+from slam.common.modules import _with_ct_icp
+from slam.common.pose import transform_pointcloud
 from slam.eval.eval_odometry import compute_relative_poses
 
-try:
-    import pyct_icp as pct
-
-    _with_ct_icp = True
-except ImportError as e:
-    _with_ct_icp = False
-
 if _with_ct_icp:
+    import pyct_icp as pct
     # Project Imports
     from typing import Optional
     from slam.odometry.odometry import *
     from slam.viz.color_map import *
-    from slam.viz.visualizer import _with_viz3d
+    from slam.common.modules import _with_viz3d
 
     if _with_viz3d:
         from viz3d.window import OpenGLWindow, field
@@ -40,7 +36,7 @@ if _with_ct_icp:
                     if key_type in [str, int, float, bool]:
                         cls.__annotations__[key] = key_type
                         setattr(cls, key, default_value)
-                    elif key_type in [pct.ICP_DISTANCE, pct.LEAST_SQUARES]:
+                    elif key_type in [pct.ICP_DISTANCE, pct.LEAST_SQUARES, pct.CT_ICP_DATASET]:
                         # Replace pyct_icp enums by string
                         cls.__annotations__[key] = str
                         value_name = default_value.name
@@ -133,9 +129,10 @@ if _with_ct_icp:
         algorithm: str = "ct_icp"
         debug_viz: bool = False
 
-        lidar_frame_key: str = "lidar_frame"
         numpy_pc_key: str = "numpy_pc"
         timestamps_key: str = "numpy_pc_timestamps"
+
+        pose_type: str = "mid_pose"  # The relative pose to return pose (in mid_pose, begin_pose, end_pose)
 
         options: OdometryOptionsWrapper = field(default_factory=lambda: OdometryOptionsWrapper())
 
@@ -152,6 +149,10 @@ if _with_ct_icp:
         The algorithm uses the wrapping python of CT_ICP (for Continuous-Time ICP)
         (see https://github.com/jedeschaud/ct_icp for more details)
         """
+
+        @staticmethod
+        def lidar_frame_key():
+            return "ct_icp_lidar_frame"
 
         def get_relative_poses(self) -> np.ndarray:
             return compute_relative_poses(np.array(self.absolute_poses))
@@ -200,15 +201,13 @@ if _with_ct_icp:
             Note: `CT_ICP` requires frames with timestamps.
                   If no timestamps are found in the frame dict, the option `slam.odometry.options.ct_icp_options`
                   Must be set to the string POINT_TO_PLANE
-
-
             """
             assert isinstance(self.config, CT_ICPOdometryConfig)
 
             # Search for or build the lidar frame
             lidar_frame = None
-            if self.config.lidar_frame_key in data_dict:
-                lidar_frame = data_dict[self.config.lidar_frame_key]
+            if self.lidar_frame_key() in data_dict:
+                lidar_frame = data_dict[self.lidar_frame_key()]
                 assert_debug(isinstance(lidar_frame, pct.LiDARFrame))
             else:
                 lidar_frame = pct.LiDARFrame()
@@ -245,7 +244,18 @@ if _with_ct_icp:
             # Add the frame to the odometry
             result: pct.RegistrationSummary = self.ct_icp_odometry.RegisterFrame(lidar_frame)
             assert_debug(result.success, f"[CT_ICP]The registration of frame {self._frame_index} has failed")
-            new_pose = result.frame.MidPose()  # [4, 4] the mid pose of the new frame
+
+            new_pose = np.eye(4, dtype=np.float64)
+            if self.config.pose_type == "mid_pose":
+                new_pose = result.frame.MidPose()  # [4, 4] the mid pose of the new frame
+            elif self.config.pose_type == "end_pose":
+                new_pose[:3, :3] = result.frame.end_R
+                new_pose[:3, 3] = result.frame.end_t
+            elif self.config.pose_type == "begin_pose":
+                new_pose[:3, :3] = result.frame.begin_R
+                new_pose[:3, 3] = result.frame.begin_t
+            else:
+                raise ValueError(f"Unrecognised `slam.odometry.pose_type` option {self.config.pose_type}")
 
             # Compute the new relative pose
             if len(self.absolute_poses) == 0:
@@ -255,5 +265,8 @@ if _with_ct_icp:
 
             self.absolute_poses.append(new_pose)
             data_dict[self.relative_pose_key()] = relative_pose
+            world_points = result.points.GetStructuredArrayRef()["pt"]
+            corrected_frame_points = transform_pointcloud(world_points, np.linalg.inv(new_pose))
+            data_dict[self.pointcloud_key()] = corrected_frame_points
 
             self._frame_index += 1

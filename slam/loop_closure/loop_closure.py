@@ -20,6 +20,7 @@ from hydra.conf import dataclass, MISSING, ConfigStore, field
 # Project Imports
 from slam.backend.backend import Backend
 from slam.common.pointcloud import grid_sample
+from slam.common.modules import _with_cv2, _with_o3d
 from slam.common.pose import transform_pointcloud
 <<<<<<< HEAD
 from slam.common.registration import ElevationImageRegistration, weighted_procrustes
@@ -105,7 +106,7 @@ if _with_cv2:
         min_id_distance: int = 200  # Do not try to detect loop closure between temporally close poses
 
         icp_distance_threshold: float = 1.0
-        with_icp_refinement: bool = True
+        with_icp_refinement: bool = _with_o3d  # Only activated if open3d can be loaded
 
         ei_registration_config: DictConfig = field(default_factory=lambda: OmegaConf.create({
             "features": "akaze",
@@ -222,6 +223,9 @@ if _with_cv2:
             self.maps_saved_data.clear()
 
         def _compute_transform(self, initial_transform, candidate_pc, target_pc):
+            if not _with_o3d:
+                return initial_transform
+
             assert isinstance(self.config, EILoopClosureConfig)
             # Refine the transform by an ICP on the point cloud
             source = o3d.geometry.PointCloud()
@@ -244,7 +248,7 @@ if _with_cv2:
                 if self.config.debug:
                     logging.info(f"Found {len(inlier_matches)}")
                 if transform is not None:
-                    if self.config.with_icp_refinement:
+                    if self.config.with_icp_refinement and _with_o3d:
                         cd_points = cd_pc_image.reshape(-1, 3)
                         cd_points = cd_points[np.linalg.norm(cd_points, axis=1) > 0]
                         tgt_points = points.reshape(-1, 3)

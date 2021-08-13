@@ -5,6 +5,7 @@ from hydra.core.config_store import ConfigStore
 
 from slam.common.utils import RuntimeDefaultDict
 from slam.common.geometry import projection_map_to_points, mask_not_null
+from slam.common.modules import _with_viz3d
 from slam.common.pose import Pose
 from slam.common.projection import Projector
 <<<<<<< HEAD
@@ -96,7 +97,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         self.local_map: LocalMap = LOCAL_MAP.load(self.config.local_map,
                                                   pose=self.pose, projector=projector)
 
-        self.config.alignment.pose = self.pose.pose_type
+        self.config.alignment.pose_type = self.pose.pose_type
         self.rigid_alignment: RigidAlignment = RIGID_ALIGNMENT.load(self.config.alignment, pose=self.pose)
 
         # self._post_processing:

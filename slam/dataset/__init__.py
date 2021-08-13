@@ -10,6 +10,7 @@ from slam.dataset.kitti_360_dataset import (KITTI360Config, KITTI360DatasetLoade
 
 from slam.dataset.rosbag_dataset import _with_rosbag
 from slam.dataset.urban_loco_dataset import UrbanLocoConfig, UrbanLocoDatasetLoader
+from slam.dataset.ct_icp_dataset import _with_ct_icp
 
 
 class DATASET(ObjectLoaderEnum, Enum):
@@ -17,6 +18,7 @@ class DATASET(ObjectLoaderEnum, Enum):
     The different datasets covered by the dataset_config configuration
     A configuration must have the field dataset_config pointing to one of these keys
     """
+
     kitti = (KITTIDatasetLoader, KITTIConfig)
     kitti_360 = (KITTI360DatasetLoader, KITTI360Config)
     nclt = (NCLTDatasetLoader, NCLTConfig)
@@ -26,6 +28,10 @@ class DATASET(ObjectLoaderEnum, Enum):
         from slam.dataset.rosbag_dataset import RosbagDatasetConfiguration, RosbagConfig
         rosbag = (RosbagDatasetConfiguration, RosbagConfig)
         urban_loco = (UrbanLocoDatasetLoader, UrbanLocoConfig)
+
+    if _with_ct_icp:
+        from slam.dataset.ct_icp_dataset import CT_ICPDatasetLoader, CT_ICPDatasetConfig
+        ct_icp = (CT_ICPDatasetLoader, CT_ICPDatasetConfig)
 
     @classmethod
     def type_name(cls):
