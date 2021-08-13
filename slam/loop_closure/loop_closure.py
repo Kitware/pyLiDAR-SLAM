@@ -148,6 +148,9 @@ if _with_cv2:
             self.data.local_map_data = [convert_tuple(nt) for nt in self.maps_saved_data]
             return self.data
 
+        def update_positions(self, trajectory: np.ndarray):
+            raise NotImplementedError("Not implemented error")
+
         def load(self, map_data: MapData):
             # Return MapData (convert cv2.KeyPoint which are not handled by the pickling protocol)
             def convert_tuple(_tuple):
