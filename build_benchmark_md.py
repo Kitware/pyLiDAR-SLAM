@@ -54,6 +54,10 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
     # Recursively search all child directories for folder with the appropriate name
     directory_list = [x[0] for x in os.walk(root_dir)]  # Absolute paths
 
+    output_root = Path(cfg.output_dir)
+    if not output_root.exists():
+        output_root.mkdir()
+
     for new_dir in directory_list:
 
         is_metrics_dir = False
@@ -164,10 +168,6 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
 
         command_lines.append(
             f"| {path_link} |  {_metrics['command'] if 'command' in _metrics else ''}   | {_metrics['git_hash'] if 'git_hash' in _metrics else ''}|\n")
-
-    output_root = Path(cfg.output_dir)
-    if not output_root.exists():
-        output_root.mkdir()
 
     output_file = str(output_root / f"{dataset_name}_benchmark.md")
     with open(output_file, "w") as stream:
