@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 from hydra.conf import dataclass, MISSING
 
 # Project Imports
-from slam.common.utils import assert_debug
+from slam.common.utils import assert_debug, ObjectLoaderEnum
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -62,28 +62,9 @@ class LoopClosure(ABC):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class LOOP_CLOSURE(Enum):
+class LOOP_CLOSURE(ObjectLoaderEnum, Enum):
     none = (None, None)
 
-    @staticmethod
-    def load(config: Union[dict, DictConfig, LoopClosureConfig], **kwargs) -> Optional[LoopClosure]:
-        if config is None:
-            return None
-
-        if isinstance(config, dict):
-            config = DictConfig(config)
-        elif isinstance(config, DictConfig) or isinstance(config, LoopClosureConfig):
-            config = config
-        else:
-            raise NotImplementedError("Loop Closure is not Implemented")
-
-        _type = config.type
-        assert_debug(_type in LOOP_CLOSURE.__members__,
-                     f"The LoopClosure type {_type} is not available or not implemented")
-
-        _class, _config = LOOP_CLOSURE[_type].value
-
-        if isinstance(config, LoopClosureConfig):
-            return _class(config, **kwargs)
-        else:
-            return _class(_config(**config), **kwargs)
+    @classmethod
+    def type_name(cls):
+        return "type"

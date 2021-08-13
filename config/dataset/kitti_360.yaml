@@ -1,0 +1,10 @@
+# @package _group_
+dataset: kitti_360
+root_dir: ${env:KITTI_360_ROOT}
+lidar_height: 64
+lidar_width: 720
+up_fov: 3
+down_fov: -24
+train_sequences: [ 0, 2, 3, 4, 5, 6, 7, 9, 10 ]
+test_sequences: [ 9, 10 ]
+eval_sequences: [ 9, 10 ]

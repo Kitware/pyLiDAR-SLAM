@@ -7,21 +7,17 @@ from omegaconf import OmegaConf
 from .icp_odometry import ICPFrameToModel, ICPFrameToModelConfig, assert_debug
 from .posenet_odometry import PoseNetOdometry, PoseNetOdometryConfig
 from .odometry import OdometryConfig
+from slam.common.utils import ObjectLoaderEnum
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class ODOMETRY(Enum):
-    """A Convenient Enum which allows to load the proper Odometry Algorithm"""
 
+
+class ODOMETRY(ObjectLoaderEnum, Enum):
+    """A Convenient Enum which allows to load the proper Odometry Algorithm"""
     icp_F2M = (ICPFrameToModel, ICPFrameToModelConfig)
     posenet = (PoseNetOdometry, PoseNetOdometryConfig)
 
-    @staticmethod
-    def load(config: OdometryConfig, **kwargs):
-        assert_debug("algorithm" in config, "The config does not contains the key : 'algorithm'")
-        algorithm = config.algorithm
-        assert_debug(algorithm in ODOMETRY.__members__, f"Unknown algorithm {algorithm}")
-
-        _class, _config = ODOMETRY.__members__[algorithm].value
-
-        return _class(_config(**config), **kwargs)
+    @classmethod
+    def type_name(cls):
+        return "algorithm"

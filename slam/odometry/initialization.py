@@ -12,8 +12,8 @@ from slam.common.pose import Pose
 from slam.common.timer import *
 from slam.odometry import *
 from slam.common.utils import assert_debug
+from slam.common.modules import _with_cv2
 from slam.training.prediction_modules import _PoseNetPredictionModule
-from slam.viz import _with_cv2
 
 if _with_cv2:
     import cv2

@@ -1,10 +1,12 @@
 import functools
 import subprocess
+from abc import abstractmethod
 
 from typing import Optional
 import yaml
 import torch
 import numpy as np
+from omegaconf import DictConfig, MISSING
 
 
 def get_git_hash() -> Optional[str]:
@@ -154,3 +156,36 @@ def get_config(config_file: str):
             return model_params
     except (FileNotFoundError, IOError):
         raise IOError(f"Could not open the yml file {config_file}")
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+class ObjectLoaderEnum:
+    """
+    ObjectLoaderEnum is a utility class to load object defined from hydra's structured config
+    """
+
+    @classmethod
+    def load(cls, config: DictConfig, **kwargs):
+        assert_debug(cls.type_name() in config, f"The config does not contains the key : '{cls.type_name()}'")
+        _type = config.get(cls.type_name())
+        assert_debug(hasattr(cls, "__members__"))
+        assert_debug(_type in cls.__members__,
+                     f"Unknown type `{_type}`. Existing members are : {cls.__members__.keys()}")
+
+        _class, _config = cls.__members__[_type].value
+
+        if isinstance(config, DictConfig):
+            # Replace the DictConfig by an instance of the Dataclass
+            # Do not yet raise error for MISSING data (letting the possibility to complete at runtime defaults)
+            new_config = _config()
+            for key in config:
+                value = config.get(key, MISSING)
+                if value != MISSING:
+                    setattr(new_config, key, value)
+            config = new_config
+
+        return _class(config, **kwargs)
+
+    @classmethod
+    def type_name(cls):
+        raise NotImplementedError("")

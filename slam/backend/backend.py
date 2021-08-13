@@ -10,7 +10,8 @@ from hydra.conf import dataclass, MISSING
 from omegaconf import DictConfig
 
 # Project Imports
-from slam.common.utils import assert_debug, check_sizes
+from slam.common.modules import _with_g2o
+from slam.common.utils import assert_debug, check_sizes, ObjectLoaderEnum
 from slam.eval.eval_odometry import compute_relative_poses
 
 
@@ -158,14 +159,10 @@ class Backend(ABC):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-try:
-    import g2o
-
-    _with_g2o = True
-except ImportError:
-    _with_g2o = False
 
 if _with_g2o:
+    import g2o
+
 
     @dataclass
     class GraphSLAMConfig(BackendConfig):
@@ -195,7 +192,7 @@ if _with_g2o:
             self.fix_first_frame = config.fix_first_frame
             self.max_iterations = config.max_optim_iterations
 
-            self.robust_kernel: g2o.RobustKernel = None # g2o.RobustKernelGemanMcClure()
+            self.robust_kernel: g2o.RobustKernel = None  # g2o.RobustKernelGemanMcClure()
 
             self.odometry_poses: Optional[list] = None
             self.loop_closure_constraints: Optional[dict] = None
@@ -386,19 +383,10 @@ if _with_g2o:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class BACKEND(Enum):
+class BACKEND(ObjectLoaderEnum, Enum):
     if _with_g2o:
         graph_slam = (GraphSLAM, GraphSLAMConfig)
 
-    @staticmethod
-    def load(config: Union[dict, DictConfig, BackendConfig], **kwargs) -> Backend:
-        config = config if isinstance(config, DictConfig) or isinstance(config, BackendConfig) else DictConfig(config)
-
-        _type = config.type
-        assert_debug(_type in BACKEND.__members__, f"The Backend type {_type} is not available or not implemented")
-
-        _class, _config = BACKEND[_type].value
-        if isinstance(config, BackendConfig):
-            _class(config, **kwargs)
-        else:
-            return _class(_config(**config), **kwargs)
+    @classmethod
+    def type_name(cls):
+        return "type"

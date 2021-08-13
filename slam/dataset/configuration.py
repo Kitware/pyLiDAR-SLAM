@@ -33,6 +33,16 @@ class DatasetLoader(ABC):
     A DatasetConfiguration is the configuration for the construction of pytorch Datasets
     """
 
+    @staticmethod
+    def absolute_gt_key():
+        """The key (in data_dict) for the absolute_pose_gt"""
+        return "absolute_pose_gt"
+
+    @staticmethod
+    def numpy_pc_key():
+        """The key (in data_dict) for xyz pointcloud"""
+        return "numpy_pc"
+
     def __init__(self, config: DatasetConfig):
         self.config = config
 

@@ -5,13 +5,14 @@ from slam.common.geometry import projection_map_to_points, mask_not_null
 from slam.common.pose import Pose
 from slam.common.projection import Projector
 from slam.common.utils import check_sizes
+from slam.common.modules import _with_viz3d
+from slam.dataset import DatasetLoader
 from slam.odometry.alignment import RigidAlignmentConfig, RIGID_ALIGNMENT, RigidAlignment
 from slam.odometry.initialization import InitializationConfig, INITIALIZATION, Initialization
 from slam.odometry.odometry import *
 from slam.odometry.local_map import LOCAL_MAP, LocalMapConfig, LocalMap
 from slam.odometry.preprocessing import PreprocessingConfig, Preprocessing
 from slam.viz.color_map import *
-from slam.viz.visualizer import _with_viz3d
 
 if _with_viz3d:
     from viz3d.window import OpenGLWindow
@@ -95,6 +96,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         # Local state variables
         self.relative_poses: list = []
         self.absolute_poses: list = []  # Absolute poses (/!\ type: torch.float64)
+        self.gt_poses: Optional[np.ndarray] = None  # Ground Truth poses
         self._iter = 0
         self._tgt_vmap: torch.Tensor = None
         self._tgt_pc: torch.Tensor = None
@@ -116,6 +118,8 @@ class ICPFrameToModel(OdometryAlgorithm):
         super().init()
         self.relative_poses = []
         self.absolute_poses = []
+        self.gt_poses = None
+
         self.local_map.init()
         self._motion_model.init()
         self._iter = 0
@@ -182,7 +186,14 @@ class ICPFrameToModel(OdometryAlgorithm):
         self.absolute_poses.append(latest_pose)
 
         tgt_np_pc = self._tgt_pc.cpu().numpy().reshape(-1, 3)
+
         if self._has_window:
+            # Add Ground truth poses (mainly for visualization purposes)
+            if DatasetLoader.absolute_gt_key() in data_dict:
+                pose_gt = data_dict[DatasetLoader.absolute_gt_key()].reshape(1, 4, 4).cpu().numpy()
+                self.gt_poses = pose_gt if self.gt_poses is None else np.concatenate(
+                    [self.gt_poses, pose_gt], axis=0)
+
             # Apply absolute pose to the pointcloud
             world_points = np.einsum("ij,nj->ni", latest_pose[:3, :3].astype(np.float32), tgt_np_pc)
             world_points += latest_pose[:3, 3].reshape(1, 3).astype(np.float32)
@@ -193,6 +204,10 @@ class ICPFrameToModel(OdometryAlgorithm):
                                                                        [0.0, 0.0, 1.0, 60.0],
                                                                        [0.0, 0.0, 0.0, 1.0]], dtype=np.float32))
             self.viz3d_window.update_camera(camera_pose)
+
+            if len(self.absolute_poses) > 0:
+                # Update Pose to the pointcloud
+                self.viz3d_window.set_poses(-1, self.gt_poses.astype(np.float32))
 
         # Update Dictionary with pointcloud and pose
         data_dict[self.pointcloud_key()] = tgt_np_pc
@@ -276,7 +291,8 @@ class ICPFrameToModel(OdometryAlgorithm):
     def _read_input(self, data_dict: dict):
         """Reads and interprets the input from the data_dict"""
         assert_debug(self.config.data_key in data_dict,
-                     f"Could not find {self.config.data_key} in the input dictionary")
+                     f"Could not find the key `{self.config.data_key}` in the input dictionary.\n"
+                     f"With keys : {data_dict.keys()}). Set the parameter `slam.odometry.data_key` to the desired key")
         data = data_dict[self.config.data_key]
 
         self._tgt_vmap = None

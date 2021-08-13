@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Optional, Tuple
 
-from slam.viz import _with_cv2
+from slam.common.modules import _with_cv2
 
 if _with_cv2:
     import cv2
@@ -26,7 +26,7 @@ if _with_cv2:
             if features == "akaze":
                 self.orb: cv2.Feature2D = cv2.AKAZE_create()
             else:
-                self.orb: cv2.Feature2D = cv2.ORB_create();
+                self.orb: cv2.Feature2D = cv2.ORB_create()
             self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
 
             # Image Construction Parameters

@@ -1,33 +1,30 @@
 from enum import Enum
 
-from slam.common.utils import assert_debug
+from slam.common.utils import ObjectLoaderEnum
 from slam.dataset.configuration import DatasetLoader, DatasetConfig
-from slam.dataset.kitti_dataset import KITTIDatasetLoader
-from slam.dataset.nclt_dataset import NCLTDatasetLoader
-from slam.dataset.ford_dataset import FordCampusDatasetLoader
-from slam.dataset.nhcd_dataset import NHCDDatasetLoader
+from slam.dataset.kitti_dataset import KITTIDatasetLoader, KITTIConfig
+from slam.dataset.nclt_dataset import NCLTDatasetLoader, NCLTConfig
+from slam.dataset.ford_dataset import FordCampusDatasetLoader, FordCampusConfig
+from slam.dataset.nhcd_dataset import NHCDDatasetLoader, NHCDConfig
+from slam.dataset.kitti_360_dataset import (KITTI360Config, KITTI360DatasetLoader)
 
 from slam.dataset.rosbag_dataset import _with_rosbag
 
 
-class DATASET(Enum):
+class DATASET(ObjectLoaderEnum, Enum):
     """
     The different datasets covered by the dataset_config configuration
     A configuration must have the field dataset_config pointing to one of these keys
     """
-    kitti = KITTIDatasetLoader
-    nclt = NCLTDatasetLoader
-    ford_campus = FordCampusDatasetLoader
-    nhcd = NHCDDatasetLoader
+    kitti = (KITTIDatasetLoader, KITTIConfig)
+    kitti_360 = (KITTI360DatasetLoader, KITTI360Config)
+    nclt = (NCLTDatasetLoader, NCLTConfig)
+    ford_campus = (FordCampusDatasetLoader, FordCampusConfig)
+    nhcd = (NHCDDatasetLoader, NHCDConfig)
     if _with_rosbag:
-        from slam.dataset.rosbag_dataset import RosbagDatasetConfiguration
-        rosbag = RosbagDatasetConfiguration
+        from slam.dataset.rosbag_dataset import RosbagDatasetConfiguration, RosbagConfig
+        rosbag = (RosbagDatasetConfiguration, RosbagConfig)
 
-    @staticmethod
-    def load(config: DatasetConfig):
-        """
-        Loads and returns a dataset_config configuration from the config
-        """
-        dataset_config = config.dataset
-        assert_debug(dataset_config in DATASET.__members__)
-        return DATASET[dataset_config].value(config)
+    @classmethod
+    def type_name(cls):
+        return "dataset"
