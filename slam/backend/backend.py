@@ -35,6 +35,12 @@ class Backend(ABC):
     def __init__(self, config: BackendConfig, **kwargs):
         self.config = config
         self._constraints: Optional[dict] = None
+        self.need_to_update_pose: bool = False
+
+    def need_to_synchronise_poses(self):
+        if self.need_to_update_pose:
+            self.need_to_update_pose = False
+            return True
 
     def init(self):
         """Clears the current representation and prepare a new model"""
@@ -378,6 +384,7 @@ if _with_g2o:
             if do_update:
                 logging.info(f"Updating the Pose Graph for {self.config.max_optim_iterations} iterations.")
                 self.optimize(self.config.max_optim_iterations)
+                self.need_to_update_pose = True
 
                 if self.with_window and self.window is not None:
                     self.window.set_cameras(0, self.absolute_poses().astype(np.float32))
@@ -412,7 +419,6 @@ class BACKEND(ObjectLoaderEnum, Enum):
 
     none = (None, None)
 
-
-@classmethod
-def type_name(cls):
-    return "type"
+    @classmethod
+    def type_name(cls):
+        return "type"
