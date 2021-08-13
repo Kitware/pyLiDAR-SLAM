@@ -220,9 +220,9 @@ class KITTI360DatasetLoader(DatasetLoader):
             A transform to be applied on the dataset_config
         """
         # Sets the path of the kitti benchmark
-        train_sequence_ids = self.config.train_sequences
-        eval_sequence_ids = self.config.eval_sequences
-        test_sequence_ids = self.config.test_sequences
+        train_sequence_ids = [str(_id) for _id in self.config.train_sequences]
+        eval_sequence_ids = [str(_id) for _id in self.config.eval_sequences]
+        test_sequence_ids = [str(_id) for _id in self.config.test_sequences]
 
         def __get_datasets(sequences: list):
             if sequences is None or len(sequences) == 0:
