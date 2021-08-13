@@ -81,6 +81,12 @@ def send_to_device(data: Union[dict, torch.Tensor, np.ndarray],
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Collate Function
+from slam.common.modules import _with_ct_icp
+
+if _with_ct_icp:
+    import pyct_icp as pct
+
+
 def collate_fun(batch) -> object:
     """
     Overrides pytorch default collate function, to keep numpy arrays in dictionaries
@@ -97,7 +103,11 @@ def collate_fun(batch) -> object:
 
         result = dict()
         for key in elem:
-            if "numpy" in key:
+            cumulate_key = "numpy" in key
+            if _with_ct_icp:
+                if isinstance(elem[key], pct.LiDARFrame):
+                    cumulate_key = True
+            if cumulate_key:
                 for idx, d in enumerate(batch):
                     if idx == 0:
                         result[f"{key}"] = d[key]

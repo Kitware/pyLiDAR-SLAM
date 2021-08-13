@@ -1,7 +1,11 @@
 # @package hydra
 
 run:
-  dir: .outputs/slam/${env:DATASET}/${env:JOB_NAME}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  dir: .outputs/slam/${env:JOB_NAME}/${env:DATASET}/${now:%Y-%m-%d}_${now:%H-%M-%S}
 sweep:
+<<<<<<< HEAD
   dir: .outputs/slam_sweep/${env:DATASET}/${env:JOB_NAME}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+=======
+  dir: .outputs/slam_sweep/${env:JOB_NAME}/${env:DATASET}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+>>>>>>> [feat] CT ICP datasets added
   subdir: ${hydra.job.num}
