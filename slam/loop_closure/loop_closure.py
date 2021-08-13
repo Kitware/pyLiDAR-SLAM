@@ -289,9 +289,10 @@ if _with_cv2:
             self.data.current_frame_id += 1
             return data_dict
 
-
-    # Add Elevation Image to the Config Store
-    cs = ConfigStore.instance()
+# Add Elevation Image to the Config Store
+cs = ConfigStore.instance()
+cs.store(name="none", group="slam/loop_closure", node=None)
+if _with_cv2:
     cs.store(name="elevation_image", group="slam/loop_closure", node=EILoopClosureConfig)
 
 
