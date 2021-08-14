@@ -202,7 +202,9 @@ class KITTI360DatasetLoader(DatasetLoader):
     def get_ground_truth(self, drive_id: str):
         """Returns the relative ground truth poses associated to a sequence of KITTI-360"""
         drive_id = int(drive_id)
-        return compute_relative_poses(get_sequence_poses(self.root_dir, drive_id))
+        gt_poses = get_sequence_poses(self.root_dir, drive_id)
+        gt_poses = np.einsum("ij,njk->nik", np.linalg.inv(gt_poses[0]), gt_poses)
+        return compute_relative_poses(gt_poses)
 
     def sequences(self):
         """
