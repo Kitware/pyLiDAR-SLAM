@@ -4,18 +4,18 @@ from typing import Optional
 from slam.common.geometry import projection_map_to_points, mask_not_null
 from slam.common.pose import Pose
 from slam.common.projection import Projector
-from slam.common.utils import check_sizes
+from slam.common.utils import check_sizes, remove_nan, modify_nan_pmap
 from slam.common.modules import _with_viz3d
 from slam.dataset import DatasetLoader
 from slam.odometry.alignment import RigidAlignmentConfig, RIGID_ALIGNMENT, RigidAlignment
 from slam.odometry.initialization import InitializationConfig, INITIALIZATION, Initialization
 from slam.odometry.odometry import *
-from slam.odometry.local_map import LOCAL_MAP, LocalMapConfig, LocalMap
+from slam.odometry.local_map import LOCAL_MAP, LocalMapConfig, LocalMap, KdTreeLocalMap
 from slam.odometry.preprocessing import PreprocessingConfig, Preprocessing
 from slam.viz.color_map import *
 
 if _with_viz3d:
-    from viz3d.window import OpenGLWindow
+    from viz3d.window import OpenGLWindow, logging
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -95,7 +95,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         # ---------------------
         # Local state variables
         self.relative_poses: list = []
-        self.absolute_poses: list = []  # Absolute poses (/!\ type: torch.float64)
+        self.absolute_poses: list = []  # Absolute poses (/!\ type: np.float64)
         self.gt_poses: Optional[np.ndarray] = None  # Ground Truth poses
         self._iter = 0
         self._tgt_vmap: torch.Tensor = None
@@ -205,7 +205,7 @@ class ICPFrameToModel(OdometryAlgorithm):
                                                                        [0.0, 0.0, 0.0, 1.0]], dtype=np.float32))
             self.viz3d_window.update_camera(camera_pose)
 
-            if len(self.absolute_poses) > 0:
+            if self.gt_poses is not None and len(self.gt_poses) > 0:
                 # Update Pose to the pointcloud
                 self.viz3d_window.set_poses(-1, self.gt_poses.astype(np.float32))
 
@@ -260,7 +260,6 @@ class ICPFrameToModel(OdometryAlgorithm):
                 break
 
             # Manifold normalization to keep proper rotations
-
             new_pose_params = self.pose.from_pose_matrix(self.pose.build_pose_matrix(delta_pose) @ new_pose_matrix)
             new_pose_matrix = self.pose.build_pose_matrix(new_pose_params)
 
@@ -322,8 +321,12 @@ class ICPFrameToModel(OdometryAlgorithm):
         else:
             raise RuntimeError(f"Could not interpret the data: {data} as a pointcloud tensor")
 
-        self._tgt_vmap = vertex_map.to(torch.float32)
+        self._tgt_vmap = vertex_map.to(torch.float32)  # [1, 3, -1, -1]
         self._tgt_pc = pc_data.to(torch.float32)
+
+        self._tgt_vmap = modify_nan_pmap(self._tgt_vmap, 0.0)
+        _tgt_pc, _ = remove_nan(self._tgt_pc[0])
+        self._tgt_pc = _tgt_pc.unsqueeze(0)
 
     def __update_map(self, new_rpose: torch.Tensor, data_dict: dict):
         # Updates the map if the motion since last registration is large enough

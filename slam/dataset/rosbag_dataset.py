@@ -26,6 +26,26 @@ except ImportError:
 
 if _with_rosbag:
 
+    @dataclass
+    class RosbagConfig(DatasetConfig):
+        """Config for a Rosbag Dataset"""
+        dataset: str = "rosbag"
+        file_path: str = field(
+            default_factory=lambda: "" if not "ROSBAG_PATH" in os.environ else os.environ["ROSBAG_PATH"])
+        main_topic: str = "numpy_pc"  # The Key of the main topic (which determines the number of frames)
+        xyz_fields: str = "xyz"
+
+        accumulate_scans: bool = False  # Whether to accumulate the pointcloud messages (in case of raw sensor data)
+        frame_size: int = 60  # The number of accumulated message which constitute a frame
+
+        topic_mapping: dict = field(default_factory=lambda: {})
+
+        lidar_height: int = 720
+        lidar_width: int = 720
+        up_fov: float = 45.
+        down_fov: float = -45.
+
+
     class RosbagDataset(IterableDataset):
         """A Dataset which wraps a RosBag
 
@@ -39,7 +59,9 @@ if _with_rosbag:
             topic_mapping (dict): The mapping topic name to key in the data_dict
         """
 
-        def __init__(self, file_path: str, main_topic: str, frame_size: int, topic_mapping: Optional[dict] = None):
+        def __init__(self, config: RosbagConfig, file_path: str, main_topic: str, frame_size: int,
+                     topic_mapping: Optional[dict] = None):
+            self.config = config
             self.rosbag = None
             assert_debug(Path(file_path).exists(), f"The path to {file_path} does not exist.")
             logging.info(f"Loading ROSBAG {file_path}")
@@ -57,7 +79,7 @@ if _with_rosbag:
                              f"(existing topics : {list(topic_info.topics.keys())}")
 
             self.main_topic = main_topic
-            self._frame_size: int = frame_size
+            self._frame_size: int = frame_size if self.config.accumulate_scans else 1
             self._len = self.rosbag.get_message_count(self.main_topic) // self._frame_size
 
             self.__idx = 0
@@ -70,11 +92,12 @@ if _with_rosbag:
             return self
 
         @staticmethod
-        def decode(msgs: list) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        def decode(msgs: list, xyz_fieldname: str = "xyz") -> Tuple[
+            Optional[np.ndarray], Optional[np.ndarray]]:
             if len(msgs) == 0:
                 return None, None
             if "PointCloud2" in msgs[0][1]._type:
-                pcs = [np.array(list(pc2.read_points(msg, field_names="xyz"))) for t, msg in msgs]
+                pcs = [np.array(list(pc2.read_points(msg, field_names=xyz_fieldname))) for t, msg in msgs]
                 timestamps = np.concatenate([np.ones((pcs[i].shape[0],),
                                                      dtype=np.int64) * msgs[i][0].nsecs for i in range(len(msgs))])
                 pcs = np.concatenate(pcs)
@@ -119,22 +142,6 @@ if _with_rosbag:
             if self.rosbag is not None:
                 self.rosbag.close()
 
-if _with_rosbag:
-    @dataclass
-    class RosbagConfig(DatasetConfig):
-        """Config for a Rosbag Dataset"""
-        dataset = "rosbag"
-        file_path: str = field(
-            default_factory=lambda: "" if not "ROSBAG_PATH" in os.environ else os.environ["ROSBAG_PATH"])
-        main_topic: str = "numpy_pc"  # The Key of the main topic (which determines the number of frames)
-        frame_size: int = 60  # The number of accumulated message which constitute a frame
-        topic_mapping: dict = field(default_factory=lambda: {})
-
-        lidar_height: int = 720
-        lidar_width: int = 720
-        up_fov: float = 45.
-        down_fov: float = -45.
-
 
     # Hydra -- stores a RosbagConfig `rosbag` in the `dataset` group
     cs = ConfigStore.instance()
@@ -156,9 +163,10 @@ if _with_rosbag:
         def sequences(self):
             assert isinstance(self.config, RosbagConfig)
             file_path = self.config.file_path
-            dataset = RosbagDataset(file_path, self.config.main_topic,
+            dataset = RosbagDataset(self.config, file_path, self.config.main_topic,
                                     self.config.frame_size,
-                                    OmegaConf.to_container(self.config.topic_mapping))
+                                    OmegaConf.to_container(self.config.topic_mapping) if isinstance(
+                                        self.config.topic_mapping, DictConfig) else self.config.topic_mapping)
 
             return ([dataset], [Path(file_path).stem]), None, None, lambda x: x
 
