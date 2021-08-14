@@ -187,7 +187,7 @@ def remove_nan(tensor: Union[torch.Tensor, np.ndarray]):
 
 def modify_nan_pmap(tensor: torch.Tensor, default_value: float = 0.0):
     """Set all pixel data of a projection map which have a nan to a default value"""
-    check_sizes(tensor, [-1, -1, -1, -1])
+    check_tensor(tensor, [-1, -1, -1, -1])
     _filter: torch.Tensor = torch.any(torch.isnan(tensor), dim=1, keepdim=True)
     _filter = _filter.repeat(1, tensor.shape[1], 1, 1)
     new_tensor = tensor.clone()
