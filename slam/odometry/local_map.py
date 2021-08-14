@@ -14,7 +14,7 @@ from slam.common.geometry import projection_map_to_points, compute_neighbors, co
 from slam.common.pose import Pose
 from slam.common.projection import Projector
 from slam.odometry import *
-from slam.common.utils import assert_debug, check_sizes
+from slam.common.utils import assert_debug, check_sizes, remove_nan
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -290,6 +290,7 @@ class KdTreeLocalMap(LocalMap):
             numpy_pc = torch_pc[torch_pc.norm(dim=-1) > 0.01].cpu().numpy()
 
         if numpy_pc is not None:
+            numpy_pc, _filter = remove_nan(numpy_pc)
             num_elements = numpy_pc.shape[0]
 
         if self._local_map is None:

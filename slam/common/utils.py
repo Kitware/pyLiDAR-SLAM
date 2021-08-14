@@ -2,7 +2,7 @@ import functools
 import subprocess
 from abc import abstractmethod
 
-from typing import Optional
+from typing import Optional, Union
 import yaml
 import torch
 import numpy as np
@@ -159,6 +159,37 @@ def get_config(config_file: str):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
+def remove_nan(tensor: Union[torch.Tensor, np.ndarray]):
+    """Removes all `nan` values from a one or two dimensional tensor"""
+    ndims = len(tensor.shape)
+    assert_debug(ndims <= 2)
+
+    if isinstance(tensor, torch.Tensor):
+        _filter = torch.isnan(tensor)
+        if ndims == 2:
+            _filter = ~torch.any(_filter, dim=1)
+    elif isinstance(tensor, np.ndarray):
+        _filter = np.isnan(tensor)
+        if ndims == 2:
+            _filter = ~np.any(_filter, axis=1)
+    else:
+        raise NotImplementedError("The tensor shape does not exist")
+
+    return tensor[_filter], _filter
+
+
+def modify_nan_pmap(tensor: torch.Tensor, default_value: float = 0.0):
+    """Set all pixel data of a projection map which have a nan to a default value"""
+    check_sizes(tensor, [-1, -1, -1, -1])
+    _filter: torch.Tensor = torch.any(torch.isnan(tensor), dim=1, keepdim=True)
+    _filter = _filter.repeat(1, tensor.shape[1], 1, 1)
+    new_tensor = tensor.clone()
+    new_tensor[_filter] = default_value
+
+    return new_tensor
+
+
+# ----------------------------------------------------------------------------------------------------------------------
 class ObjectLoaderEnum:
     """
     ObjectLoaderEnum is a utility class to load object defined from hydra's structured config
@@ -166,8 +197,12 @@ class ObjectLoaderEnum:
 
     @classmethod
     def load(cls, config: DictConfig, **kwargs):
-        assert_debug(cls.type_name() in config, f"The config does not contains the key : '{cls.type_name()}'")
-        _type = config.get(cls.type_name())
+        if isinstance(config, DictConfig):
+            assert_debug(cls.type_name() in config, f"The config does not contains the key : '{cls.type_name()}'")
+            _type = config.get(cls.type_name())
+        else:
+            assert_debug(hasattr(config, cls.type_name()), f"The object {config} is not a valid config.")
+            _type = getattr(config, cls.type_name())
         assert_debug(hasattr(cls, "__members__"))
         assert_debug(_type in cls.__members__,
                      f"Unknown type `{_type}`. Existing members are : {cls.__members__.keys()}")
