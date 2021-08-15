@@ -208,6 +208,8 @@ class ObjectLoaderEnum:
                      f"Unknown type `{_type}`. Existing members are : {cls.__members__.keys()}")
 
         _class, _config = cls.__members__[_type].value
+        if _class is None or _config is None:
+            return None
 
         if isinstance(config, DictConfig):
             # Replace the DictConfig by an instance of the Dataclass
