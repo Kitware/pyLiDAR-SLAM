@@ -92,29 +92,41 @@ if _with_rosbag:
             return self
 
         @staticmethod
-        def decode(msgs: list, xyz_fieldname: str = "xyz") -> Tuple[
+        def decode_pointclouds(msgs: list, xyz_fieldname: str = "xyz") -> Tuple[
             Optional[np.ndarray], Optional[np.ndarray]]:
             if len(msgs) == 0:
                 return None, None
             if "PointCloud2" in msgs[0][1]._type:
                 pcs = [np.array(list(pc2.read_points(msg, field_names=xyz_fieldname))) for t, msg in msgs]
                 timestamps = np.concatenate([np.ones((pcs[i].shape[0],),
-                                                     dtype=np.int64) * msgs[i][0].nsecs for i in range(len(msgs))])
+                                                     dtype=np.float64) * (
+                                                         float(msgs[i][0].secs * 10e9) + msgs[i][0].nsecs) for
+                                             i
+                                             in range(len(msgs))])
                 pcs = np.concatenate(pcs)
 
                 return pcs, timestamps
             else:
                 return None, None
 
+        def decode_data(self, _key: str, data_dict: dict, msg_list: list, **kwargs):
+            """Decodes data and insert into a data_dict"""
+            if len(msg_list) == 0:
+                return
+
+            elem = msg_list[0][1]
+            if "PointCloud2" in elem._type:
+                data, timestamps = self.decode_pointclouds(msg_list)
+                if data is not None:
+                    data_dict[_key] = data
+                if timestamps is not None:
+                    data_dict[f"{_key}_timestamps"] = timestamps
+
         def _convert(self, data_dict):
             new_dict = dict()
             for key, msgs in data_dict.items():
-                data, timestamps = self.decode(msgs)
                 _key = self.topic_mapping[key]
-                if data is not None:
-                    new_dict[_key] = data
-                if timestamps is not None:
-                    new_dict[f"{_key}_timestamps"] = timestamps
+                self.decode_data(_key, new_dict, msgs)
 
             return new_dict
 
