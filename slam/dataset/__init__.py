@@ -9,6 +9,7 @@ from slam.dataset.nhcd_dataset import NHCDDatasetLoader, NHCDConfig
 from slam.dataset.kitti_360_dataset import (KITTI360Config, KITTI360DatasetLoader)
 
 from slam.dataset.rosbag_dataset import _with_rosbag
+from slam.dataset.urban_loco_dataset import UrbanLocoConfig, UrbanLocoDatasetLoader
 
 
 class DATASET(ObjectLoaderEnum, Enum):
@@ -24,6 +25,7 @@ class DATASET(ObjectLoaderEnum, Enum):
     if _with_rosbag:
         from slam.dataset.rosbag_dataset import RosbagDatasetConfiguration, RosbagConfig
         rosbag = (RosbagDatasetConfiguration, RosbagConfig)
+        urban_loco = (UrbanLocoDatasetLoader, UrbanLocoConfig)
 
     @classmethod
     def type_name(cls):

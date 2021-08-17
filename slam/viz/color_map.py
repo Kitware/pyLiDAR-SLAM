@@ -39,6 +39,13 @@ COLORMAPS = {'rainbow': opencv_rainbow(),
 
 def gray_color_map(np_image: np.array, color_map="rainbow") -> np.array:
     """
+    Returns a color image from a gray image
+
+    Parameters:
+        np_image (np.ndarray): a gray image `(H,W)`
+
+    Returns:
+        np.ndarray `(4,H,W)`
     """
     assert len(np_image.shape) == 2
     min_value = np_image.min()
@@ -47,6 +54,18 @@ def gray_color_map(np_image: np.array, color_map="rainbow") -> np.array:
     output_image = COLORMAPS[color_map](np_image).astype(np.float32)
     output_image = output_image.transpose(2, 0, 1)
     return output_image
+
+
+def scalar_gray_cmap(values: np.ndarray, cmap="rainbow") -> np.ndarray:
+    """Returns an array of colors from an array of values
+
+    Parameters:
+        values (np.ndarray): an array of scalars `(N,)`
+    Returns:
+        np.ndarray `(N,3)`
+    """
+    colors = gray_color_map(values.reshape(-1, 1), cmap)[:3, :, 0].T
+    return colors
 
 
 def rescale_image_values(t_image: Union[torch.Tensor, np.ndarray]):

@@ -437,3 +437,30 @@ def compute_neighbors(vm_target,
         reference_fields[reference_fields == float("inf")] = 0.0
 
     return vm_neighbors, reference_fields
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+def estimate_timestamps(numpy_pc: np.ndarray, clockwise: bool = True, phi_0: float = 0.0):
+    """Computes an Estimate of timestamps for rotating lasers
+
+    Each point are expressed in spherical coordinates,
+    The timestamps are assigned based on their azimuthal angle (phi)
+
+    Note: This is an imperfect estimation, as when the the vehicle is turning, objects near the frontier
+          (ie from both sides of the phi_0 can still be doubled)
+
+    Parameters:
+        clockwise (bool): whether the lidar turns clockwise or counter clockwise
+                          (clockwise when considering the x axis as right, and y axis as up in the 2D plane)
+        numpy_pc (np.ndarray): the pointcloud expressed in the local lidar reference `(-1, 3)`
+        phi_0 (float): an initial phi added to the azimuth angles
+                       the resulting timestamps are computed starting from phi_0 as the initial timestamp
+    """
+    phis = np.arctan2(numpy_pc[:, 1], numpy_pc[:, 0]) * (-1.0 if clockwise else 1.0)
+    phis -= phi_0
+    phis[phis < 0.0] += 2 * np.pi
+
+    min_phis = phis.min()
+    max_phis = phis.max()
+
+    return (phis - min_phis) / (max_phis - min_phis)

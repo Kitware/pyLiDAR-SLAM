@@ -2,6 +2,38 @@ import torch
 
 from slam.common.rotation import torch_euler_to_mat, torch_mat_to_euler, torch_pose_matrix_jacobian_euler
 from slam.common.utils import assert_debug, check_sizes
+import numpy as np
+from scipy.spatial.transform.rotation import Rotation as R, Slerp
+from scipy.interpolate.interpolate import interp1d
+
+
+class PosesInterpolator:
+    """Object which performs interpolation of poses using timestamps
+
+    Poses and corresponding key timestamps are passed to the constructor.
+    The PosesInterpolator returns a linear interpolation on these poses
+    When called with new timestamps.
+    """
+
+    def __init__(self, poses: np.ndarray, timestamps: np.ndarray):
+        check_sizes(poses, [-1, 4, 4])
+        check_sizes(timestamps, [-1])
+        self.min_timestamp = timestamps.min()
+        self.max_timestamp = timestamps.max()
+
+        self.slerp = Slerp(timestamps, R.from_matrix(poses[:, :3, :3]))
+        self.interp_tr = interp1d(timestamps, poses[:, :3, 3], axis=0)
+
+    def __call__(self, timestamps: np.ndarray):
+        if timestamps.min() < self.min_timestamp or timestamps.max() > self.max_timestamp:
+            timestamps = np.clip(timestamps, self.min_timestamp, self.max_timestamp)
+        tr = self.interp_tr(timestamps)
+        rots = self.slerp(timestamps)
+
+        poses = np.eye(4, dtype=np.float64).reshape(1, 4, 4).repeat(timestamps.shape[0], axis=0)
+        poses[:, :3, :3] = rots.as_matrix()
+        poses[:, :3, 3] = tr
+        return poses
 
 
 class Pose(object):
