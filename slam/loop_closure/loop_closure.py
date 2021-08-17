@@ -1,25 +1,21 @@
-import copy
 import logging
 from abc import ABC
 from collections import namedtuple
 from enum import Enum
-from typing import Union, Optional
-import numpy as np
 
+import numpy as np
+import open3d as o3d
+from hydra.conf import dataclass, MISSING, ConfigStore, field
 # Hydra and OmegaConf
 from omegaconf import DictConfig, OmegaConf
-from hydra.conf import dataclass, MISSING, ConfigStore, field
 
 # Project Imports
 from slam.backend.backend import Backend
+from slam.common.modules import _with_cv2
 from slam.common.pointcloud import grid_sample
 from slam.common.pose import transform_pointcloud
 from slam.common.registration import ElevationImageRegistration
 from slam.common.utils import assert_debug, check_tensor, ObjectLoaderEnum
-from slam.odometry.alignment import GNPointToPointConfig, GaussNewtonPointToPointAlignment
-
-from slam.common.modules import _with_cv2
-import open3d as o3d
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -83,7 +79,7 @@ if _with_cv2:
         type: str = "elevation_image"
         local_map_size: int = 50  # The number of frames in the stored local map
         overlap: int = 20  # The number of frames overlapping in the stored local map
-        debug: bool = True
+        debug: bool = False
         max_num_candidates: int = 10  # Maximum number of candidates to inspect
         max_distance: float = 100  # Limit the maximum distance to search for loops
         min_id_distance: int = 200  # Do not try to detect loop closure between temporally close poses
@@ -112,6 +108,7 @@ if _with_cv2:
         current_frame_id: int = 0
         all_frames_absolute_poses: list = field(default_factory=lambda: [])
         maps_absolute_poses: np.ndarray = field(default_factory=lambda: np.zeros((0, 4, 4), dtype=np.float64))
+        maps_frame_ids: list = field(default_factory=lambda: [])
 
         current_map_pcs: list = field(default_factory=lambda: [])  # Store the pointclouds
         current_map_poses: list = field(default_factory=lambda: [])  # Absolute poses
@@ -149,7 +146,18 @@ if _with_cv2:
             return self.data
 
         def update_positions(self, trajectory: np.ndarray):
-            raise NotImplementedError("Not implemented error")
+            check_tensor(trajectory, [self.data.current_frame_id, 4, 4])
+            if self.data.current_frame_id == 0:
+                return
+
+            num_saved_poses = len(self.data.all_frames_absolute_poses)
+            self.data.all_frames_absolute_poses = [trajectory[idx] for idx in range(num_saved_poses)]
+            self.data.maps_absolute_poses = np.array([trajectory[frame_id] for frame_id in self.data.maps_frame_ids])
+            self.data.last_inserted_pose = trajectory[-1]
+
+            num_poses_in_current_map = len(self.data.current_map_pcs)
+            for idx in range(num_poses_in_current_map):
+                self.data.current_map_poses[-idx] = trajectory[-idx]
 
         def load(self, map_data: MapData):
             # Return MapData (convert cv2.KeyPoint which are not handled by the pickling protocol)
@@ -278,6 +286,7 @@ if _with_cv2:
                 self.data.maps_absolute_poses = np.concatenate(
                     [self.data.maps_absolute_poses, mid_pose.reshape(1, 4, 4)],
                     axis=0)
+                self.data.maps_frame_ids.append(mid_pose_frame_id)
                 self.maps_saved_data.append(LocalMapData(feat, desc,
                                                          meta_data["points_3D"], mid_pose_frame_id))
 
