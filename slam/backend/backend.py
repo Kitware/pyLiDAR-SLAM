@@ -184,7 +184,7 @@ if _with_g2o:
         max_optim_iterations: int = 100
         online_optimization: bool = True
 
-        debug: bool = True
+        debug: bool = False
 
 
     class GraphSLAM(Backend):
@@ -256,7 +256,7 @@ if _with_g2o:
                                   self.fix_first_frame)
                 self.odometry_poses = [np.eye(4)]
 
-            if self.with_window is not None:
+            if self.with_window:
                 self.window = OpenGLWindow()
                 self.window.init()
 
