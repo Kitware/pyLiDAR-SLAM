@@ -5,16 +5,11 @@ from hydra.core.config_store import ConfigStore
 
 from slam.common.utils import RuntimeDefaultDict
 from slam.common.geometry import projection_map_to_points, mask_not_null
-from slam.common.modules import _with_viz3d
 from slam.common.pose import Pose
 from slam.common.projection import Projector
-<<<<<<< HEAD
 from slam.common.modules import _with_viz3d
 from slam.dataset import DatasetLoader
 from slam.common.utils import check_tensor, remove_nan, modify_nan_pmap
-=======
-from slam.common.utils import check_tensor
->>>>>>> [feat] Add V1 of loop Closure
 from slam.odometry.alignment import RigidAlignmentConfig, RIGID_ALIGNMENT, RigidAlignment
 from slam.odometry.initialization import InitializationConfig, INITIALIZATION, Initialization
 from slam.odometry.odometry import *
@@ -275,10 +270,6 @@ class ICPFrameToModel(OdometryAlgorithm):
                 break
 
             # Manifold normalization to keep proper rotations
-<<<<<<< HEAD
-=======
-
->>>>>>> [feat] Add V1 of loop Closure
             new_pose_params = self.pose.from_pose_matrix(delta_pose_matrix @ new_pose_matrix)
             new_pose_matrix = self.pose.build_pose_matrix(new_pose_params)
 
