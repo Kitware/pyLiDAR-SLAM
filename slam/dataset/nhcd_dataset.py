@@ -128,6 +128,13 @@ class NHCDOdometrySequence(Dataset):
 
         # Read timestamps
         data_dict[self.pointcloud_channel] = xyz.astype(np.float32)
+        N_rows = int(xyz.shape[0] / 64)
+        timestamps = np.arange(N_rows).reshape(N_rows, 1).repeat(64, axis=1).reshape(-1, ).astype(np.float64)
+        min_t = timestamps.min()
+        max_t = timestamps.max()
+
+        timestamps = (timestamps - min_t) / (max_t - min_t) + idx
+        data_dict[f"{self.pointcloud_channel}_timestamps"] = timestamps
 
         if self.has_gt:
             data_dict[self.ground_truth_channel] = self.poses[idx]
