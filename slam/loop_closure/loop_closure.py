@@ -89,12 +89,12 @@ if _with_cv2:
 
         ei_registration_config: DictConfig = field(default_factory=lambda: OmegaConf.create({
             "features": "akaze",
-            "pixel_size": 0.15,
+            "pixel_size": 0.1,
             "z_min": -3.0,
             "z_max": 5,
             "sigma": 0.1,
-            "im_height": 800,
-            "im_width": 800,
+            "im_height": 1200,
+            "im_width": 1200,
             "color_map": "jet",
             "inlier_threshold": 50,
             "distance_threshold": 2.0
@@ -202,7 +202,10 @@ if _with_cv2:
             for candidate in candidate_ids:
                 cd_feat, cd_desc, cd_pc_image, cd_frame_id = self.maps_saved_data[candidate]
 
-                transform, points_2D, _ = self.registration_2D.align_2d(feat, desc, cd_feat, cd_desc, None, None)
+                transform, points_2D, inlier_matches = self.registration_2D.align_2d(feat, desc, cd_feat,
+                                                                                     cd_desc, None, None)
+                if self.config.debug:
+                    logging.info(f"Found {len(inlier_matches)}")
                 if transform is not None:
                     if self.config.with_icp_refinement:
                         cd_points = cd_pc_image.reshape(-1, 3)
