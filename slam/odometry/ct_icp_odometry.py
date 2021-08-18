@@ -2,6 +2,7 @@ from hydra.core.config_store import ConfigStore
 
 from slam.common.modules import _with_ct_icp
 from slam.common.pose import transform_pointcloud
+from slam.common.utils import remove_nan
 from slam.eval.eval_odometry import compute_relative_poses
 
 if _with_ct_icp:
@@ -190,7 +191,7 @@ if _with_ct_icp:
                     self.viz3d_window.close(True)
                     self.viz3d_window = None
                 self.viz3d_window = OpenGLWindow(
-                    engine_config={"with_edl": self.config.viz_with_edl, "edl_strength": 1000.0})
+                    engine_config={"with_edl": True, "edl_strength": 1000.0})
                 self.viz3d_window.init()
 
         # ------------------------------------------------------------------------------------------------------------------
@@ -214,14 +215,16 @@ if _with_ct_icp:
                 assert_debug(self.config.numpy_pc_key in data_dict)
                 numpy_pc = data_dict[self.config.numpy_pc_key].astype(np.float64)
 
+                new_points, __filter = remove_nan(numpy_pc)
+
                 if self.ct_icp_options.ct_icp_options.distance == pct.CT_POINT_TO_PLANE:
                     # CT_ICP requires timestamps
                     assert_debug(self.config.timestamps_key in data_dict,
                                  f"[CT_ICP] The timestamps dict {self.config.timestamps_key} is not in the dict containing keys={data_dict.keys()}.\n"
                                  f"Set the parameter slam.odometry.odometry_options.ct_icp_options.distance=POINT_TO_PLANE to run the standard Point-to-plane algorithm")
-                    timestamps = data_dict[self.config.timestamps_key].astype(np.float64)
+                    timestamps = data_dict[self.config.timestamps_key].astype(np.float64)[__filter]
                 else:
-                    timestamps = np.ones((numpy_pc.shape[0],), dtype=np.float64)
+                    timestamps = np.ones((new_points.shape[0],), dtype=np.float64)
 
                 min_timestamp = timestamps.min()
                 max_timestamp = timestamps.max()
@@ -230,9 +233,9 @@ if _with_ct_icp:
                 else:
                     alpha_timestamp = timestamps
 
-                frame_index = np.ones((numpy_pc.shape[0],), dtype=np.int32) * self._frame_index
+                frame_index = np.ones((new_points.shape[0],), dtype=np.int32) * self._frame_index
 
-                frame_points = np.rec.fromarrays([numpy_pc, numpy_pc,
+                frame_points = np.rec.fromarrays([new_points, new_points,
                                                   alpha_timestamp, timestamps, frame_index],
                                                  dtype=[("raw_point", "3f8"),
                                                         ("point", "3f8"),
@@ -268,5 +271,9 @@ if _with_ct_icp:
             world_points = result.points.GetStructuredArrayRef()["pt"]
             corrected_frame_points = transform_pointcloud(world_points, np.linalg.inv(new_pose))
             data_dict[self.pointcloud_key()] = corrected_frame_points
+
+            if self._has_window:
+                wpoints = world_points.astype(np.float32)
+                self.viz3d_window.set_pointcloud(self._frame_index % 100, wpoints)
 
             self._frame_index += 1

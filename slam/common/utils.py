@@ -247,6 +247,11 @@ class RuntimeDefaultDict:
             if key not in self._default_dict:
                 continue
 
+            if hasattr(self, field.name):
+                previous_value = getattr(self, field.name, MISSING)
+                if previous_value != MISSING:
+                    continue
+
             cd_path = self._default_dict[key]
             config_node = cs.load(f"{cd_path}.yaml")
             assert_debug(config_node is not None, "Could not find any matching defaults in the config store.")
