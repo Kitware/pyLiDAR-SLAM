@@ -92,7 +92,8 @@ class ICPFrameToModel(OdometryAlgorithm):
         self.local_map: LocalMap = LOCAL_MAP.load(self.config.local_map,
                                                   pose=self.pose, projector=projector)
 
-        self.config.alignment.pose_type = self.pose.pose_type
+        assert isinstance(self.config, ICPFrameToModelConfig)
+        self.config.alignment.pose = self.pose.pose_type
         self.rigid_alignment: RigidAlignment = RIGID_ALIGNMENT.load(self.config.alignment, pose=self.pose)
 
         # self._post_processing:

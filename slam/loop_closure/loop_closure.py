@@ -5,16 +5,9 @@ from collections import namedtuple
 from enum import Enum
 
 import numpy as np
-from hydra.conf import dataclass, MISSING, ConfigStore, field
+
 # Hydra and OmegaConf
 from omegaconf import DictConfig, OmegaConf
-
-# Project Imports
-from slam.common.modules import _with_cv2, _with_o3d
-from slam.common.pointcloud import grid_sample
-from slam.common.pose import transform_pointcloud
-from slam.common.registration import ElevationImageRegistration
-from slam.common.utils import assert_debug, check_tensor, ObjectLoaderEnum
 from hydra.conf import dataclass, MISSING, ConfigStore, field
 
 # Project Imports
@@ -22,14 +15,9 @@ from slam.backend.backend import Backend
 from slam.common.pointcloud import grid_sample
 from slam.common.modules import _with_cv2, _with_o3d
 from slam.common.pose import transform_pointcloud
-<<<<<<< HEAD
-from slam.common.registration import ElevationImageRegistration, weighted_procrustes
-from slam.common.utils import assert_debug, check_tensor, ObjectLoaderEnum
-from slam.odometry.alignment import GNPointToPointConfig, GaussNewtonPointToPointAlignment
-=======
 from slam.common.registration import ElevationImageRegistration
->>>>>>> [fix]
 from slam.common.utils import assert_debug, check_tensor
+from slam.common.utils import assert_debug, check_tensor, ObjectLoaderEnum
 
 from slam.viz import _with_cv2
 
@@ -217,6 +205,7 @@ if _with_cv2:
             self.data.current_map_poses.clear()
             self.data.current_map_frameids.clear()
             self.data.all_frames_absolute_poses.clear()
+            self.data.maps_frame_ids.clear()
             self.data.last_inserted_pose = np.eye(4, dtype=np.float64)
             self.data.current_frame_id = 0
             self.data.maps_absolute_poses = np.zeros((0, 4, 4), dtype=np.float64)
