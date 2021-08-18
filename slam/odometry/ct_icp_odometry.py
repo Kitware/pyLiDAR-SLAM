@@ -217,7 +217,7 @@ if _with_ct_icp:
                 if self.ct_icp_options.ct_icp_options.distance == pct.CT_POINT_TO_PLANE:
                     # CT_ICP requires timestamps
                     assert_debug(self.config.timestamps_key in data_dict,
-                                 f"[CT_ICP] The timestamps dict {self.config.timestamps_key} is not in the dict."
+                                 f"[CT_ICP] The timestamps dict {self.config.timestamps_key} is not in the dict containing keys={data_dict.keys()}.\n"
                                  f"Set the parameter slam.odometry.odometry_options.ct_icp_options.distance=POINT_TO_PLANE to run the standard Point-to-plane algorithm")
                     timestamps = data_dict[self.config.timestamps_key].astype(np.float64)
                 else:
