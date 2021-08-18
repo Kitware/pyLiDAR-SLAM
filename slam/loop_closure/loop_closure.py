@@ -178,6 +178,7 @@ if _with_cv2:
             self.data.current_map_pcs.clear()
             self.data.current_map_poses.clear()
             self.data.current_map_frameids.clear()
+            self.data.all_frames_absolute_poses.clear()
             self.data.last_inserted_pose = np.eye(4, dtype=np.float64)
             self.data.current_frame_id = 0
             self.data.maps_absolute_poses = np.zeros((0, 4, 4), dtype=np.float64)
