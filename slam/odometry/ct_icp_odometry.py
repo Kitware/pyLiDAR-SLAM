@@ -168,6 +168,7 @@ if _with_ct_icp:
             self.viz3d_window = None
             self._frame_index = 0
             self.absolute_poses = []
+            self.gt_poses = []
 
         def __del__(self):
             if self._has_window:
@@ -185,6 +186,7 @@ if _with_ct_icp:
 
             self._frame_index = 0
             self.absolute_poses.clear()
+            self.gt_poses.clear()
 
             if self._has_window:
                 if self.viz3d_window is not None:
@@ -272,8 +274,18 @@ if _with_ct_icp:
             corrected_frame_points = transform_pointcloud(world_points, np.linalg.inv(new_pose))
             data_dict[self.pointcloud_key()] = corrected_frame_points
 
+            if "absolute_pose_gt" in data_dict:
+                gt_pose = data_dict["absolute_pose_gt"]
+                if isinstance(gt_pose, torch.Tensor):
+                    gt_pose = gt_pose.cpu().numpy().reshape(4, 4)
+                self.gt_poses.append(gt_pose)
+
             if self._has_window:
                 wpoints = world_points.astype(np.float32)
                 self.viz3d_window.set_pointcloud(self._frame_index % 100, wpoints)
+                self.viz3d_window.update_camera(new_pose.astype(np.float32))
+                if self._frame_index % 20 == 0:
+                    if len(self.gt_poses) > 0:
+                        self.viz3d_window.set_poses(-1, np.array(self.gt_poses).astype(np.float32))
 
             self._frame_index += 1
