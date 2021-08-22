@@ -1,4 +1,5 @@
 import dataclasses
+import logging
 from pathlib import Path
 from typing import Optional
 import time
@@ -11,9 +12,11 @@ import numpy as np
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import shutil
 
 # Hydra and OmegaConf imports
 from hydra.core.config_store import ConfigStore
+from hydra.conf import dataclass, MISSING, field
 
 # Project Imports
 from slam.common.pose import Pose
@@ -22,7 +25,6 @@ from slam.common.utils import check_sizes, assert_debug, get_git_hash
 from slam.dataset import DatasetLoader, DATASET
 from slam.eval.eval_odometry import OdometryResults
 from slam.dataset.configuration import DatasetConfig
-from hydra.conf import dataclass, MISSING, field
 
 from slam.slam import SLAMConfig, SLAM
 
@@ -43,6 +45,9 @@ class SLAMRunnerConfig:
     pin_memory: bool = True
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     pose: str = "euler"
+
+    fail_dir: str = field(default_factory=os.getcwd)  # By default the fail_dir is the same directory
+    move_if_fail: bool = False
 
     # ----------------
     # Debug parameters
@@ -96,13 +101,41 @@ class SLAMRunner(ABC):
             config_dict["_working_dir"] = os.getcwd()
             config_file.write(OmegaConf.to_yaml(config_dict))
 
+    def handle_failure(self):
+        """Handles Failure cases of the SLAM runner"""
+        # In case of failure move the current working directory and its content to another directory
+        if self.config.move_if_fail:
+            try:
+                fail_dir = Path(self.config.fail_dir)
+                assert_debug(fail_dir.exists(),
+                             f"[SLAM] -- The `failure` directory {str(fail_dir)} does not exist on disk")
+                current_dir: Path = Path(os.getcwd())
+
+                if fail_dir.absolute() == current_dir.absolute():
+                    logging.warning(
+                        "The `fail_dir` variable points to the current working directory. It will not be moved.")
+                    return
+
+                destination_dir = fail_dir
+                if not destination_dir.exists():
+                    destination_dir.mkdir()
+
+                shutil.move(str(current_dir), str(destination_dir))
+                assert_debug(not current_dir.exists(), "Could not move current working directory")
+            except (Exception, AssertionError, KeyboardInterrupt):
+                logging.warning("[PyLIDAR-SLAM] Could not move the directory")
+
     def run_odometry(self):
         """Runs the LiDAR Odometry algorithm on the different datasets"""
-        # Load the Datasets
-        datasets: list = self.load_datasets()
-        # Load the Slam algorithm
-        slam = self.load_slam_algorithm()
-        self.save_config()
+        try:
+            # Load the Datasets
+            datasets: list = self.load_datasets()
+            # Load the Slam algorithm
+            slam = self.load_slam_algorithm()
+            self.save_config()
+        except (KeyboardInterrupt, Exception) as e:
+            self.handle_failure()
+            raise
 
         for sequence_name, dataset in datasets:
             # Build dataloader
@@ -117,9 +150,17 @@ class SLAMRunner(ABC):
 
             elapsed = 0.0
             relative_ground_truth = self.ground_truth(sequence_name)
-            for b_idx, data_dict in self._progress_bar(dataloader, desc=f"Sequence {sequence_name}"):
-                data_dict = self._send_to_device(data_dict)
-                try:
+
+            def catch_exception():
+                _relative_poses = slam.get_relative_poses()
+                if _relative_poses is not None and len(_relative_poses) > 0:
+                    self.save_and_evaluate(sequence_name, _relative_poses, None)
+                print("[ERRROR] running SLAM : the estimated trajectory was dumped")
+                self.handle_failure()
+
+            try:
+                for b_idx, data_dict in self._progress_bar(dataloader, desc=f"Sequence {sequence_name}"):
+                    data_dict = self._send_to_device(data_dict)
                     start = time.time()
 
                     # Process next frame
@@ -128,13 +169,12 @@ class SLAMRunner(ABC):
                     # Measure the time spent on the processing of the next frame
                     elapsed_sec = time.time() - start
                     elapsed += elapsed_sec
-
-                except RuntimeError as e:
-                    relative_poses = slam.get_relative_poses()
-                    if relative_poses is not None and len(relative_poses) > 0:
-                        self.save_and_evaluate(sequence_name, relative_poses, None)
-                    print("[ERRROR] running SLAM : the estimated trajectory was dumped")
-                    raise e
+            except KeyboardInterrupt:
+                catch_exception()
+                raise
+            except (KeyboardInterrupt, Exception, RuntimeError, AssertionError) as e:
+                catch_exception()
+                raise e
 
             # Dump trajectory constraints in case of loop closure
             slam.dump_all_constraints(str(Path(self.log_dir) / sequence_name))
