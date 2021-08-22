@@ -1,6 +1,6 @@
 num_workers: 4 # The number of workers to load the data
 device: cpu # The device for the main pytorch computations
-fail_dir: ???
+fail_dir: ""
 move_if_fail: false
 
 dataset:
