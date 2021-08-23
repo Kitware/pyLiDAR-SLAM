@@ -104,7 +104,6 @@ if _with_cv2:
             "sigma": 0.1,
             "im_height": 1200,
             "im_width": 1200,
-            "pixel_size": 0.15,
             "color_map": "jet",
             "inlier_threshold": 50,
             "distance_threshold": 2.0
@@ -338,7 +337,6 @@ if _with_cv2:
 cs = ConfigStore.instance()
 cs.store(name="none", group="slam/loop_closure", node=None)
 if _with_cv2:
-
     # Add Elevation Image to the Config Store
     cs = ConfigStore.instance()
     cs.store(name="elevation_image", group="slam/loop_closure", node=EILoopClosureConfig)
