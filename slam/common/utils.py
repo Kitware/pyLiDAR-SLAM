@@ -277,7 +277,6 @@ class ObjectLoaderEnum:
             assert_debug(hasattr(config, cls.type_name()), f"The object {config} is not a valid config.")
             _type = getattr(config, cls.type_name())
 
-        assert_debug(cls.type_name() in config, f"The config does not contains the key : '{cls.type_name()}'")
         _type = config.get(cls.type_name())
         assert_debug(hasattr(cls, "__members__"))
         assert_debug(_type in cls.__members__,
