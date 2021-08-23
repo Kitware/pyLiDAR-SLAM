@@ -72,6 +72,24 @@ def packet_ids(ring_ids: np.ndarray):
     return array
 
 
+_california_ext_to_lidar = np.array([[0., -1., 0., -5.245e-01],
+                                     [-1., 0., 0., 1.06045],
+                                     [0., 0., -1., 7.98576e-01],
+                                     [0, 0, 0, 1]], dtype=np.float64)
+
+_hk_body_to_lidar = np.array([[2.67949e-08, -1, 0, 0],
+                              [1, 2.67949e-08, 0, 0],
+                              [0, 0, 1, -0.28],
+                              [0., 0., 0., 1]], dtype=np.float64)
+
+_hk_body_to_span = np.array([[2.67949e-08, -1, 0, 0],
+                             [1, 2.67949e-08, 0, 0],
+                             [0, 0, 1, -0.36],
+                             [0., 0., 0., 1]], dtype=np.float64)
+
+_hk_span_to_lidar = _hk_body_to_lidar.dot(np.linalg.inv(_hk_body_to_span))
+
+
 class UrbanLocoDataset(RosbagDataset):
     """Sequence of the UrbanLoco Dataset wrapping a Rosbag
 
@@ -116,6 +134,7 @@ class UrbanLocoDataset(RosbagDataset):
     def _topics_mapping(acquisition: ACQUISITION):
         return {UrbanLocoDataset.ground_truth_topic(): DatasetLoader.absolute_gt_key(),
                 (UrbanLocoDataset.pointcloud_topic(acquisition)): "numpy_pc",
+                "/novatel_data/inspvax": "gps_pose",
                 "/navsat/odom": "odom"}
 
     def span_to_lidar(self):
@@ -124,31 +143,44 @@ class UrbanLocoDataset(RosbagDataset):
         else:
             return self.__span_to_lidar_california
 
+    def llu_to_ecef(self, llu: np.ndarray):
+        ecef = np.zeros((3,), dtype=np.float64)
+        a = 6378137.0
+        b = 6356752.314
+
+        lon = llu[0] * 3.1415926 / 180.0
+        lat = llu[1] * 3.1415926 / 180.0
+        alt = llu[2]
+        n = a * a / np.sqrt(a * a * np.cos(lat) * np.cos(lat) + b * b * np.sin(lat) * np.sin(lat))
+        Rx = (n + alt) * np.cos(lat) * np.cos(lon)
+        Ry = (n + alt) * np.cos(lat) * np.sin(lon)
+        Rz = (b * b / (a * a) * n + alt) * np.sin(lat);
+        ecef[0] = Rx
+        ecef[1] = Ry
+        ecef[2] = Rz
+        return ecef
+
     def decode_data(self, _key: str, data_dict: dict, msg_list: list, **kwargs):
         super().decode_data(_key, data_dict, msg_list, **kwargs)
         if len(msg_list) == 0:
             return
         elem = msg_list[0][1]
-        if "Odom" in elem._type:  # /navsat/Odom message contains information of the absolute pose
-            odom_items = []
-            for timestamp, msg in msg_list:
-                quat = msg.pose.pose.orientation
-                xyz = msg.pose.pose.position
-                pose = np.eye(4, dtype=np.float64)
-                pose[:3, :3] = R.from_quat(np.array([quat.x, quat.y, quat.z, quat.w], dtype=np.float64)).as_matrix()
-                pose[:3, 3] = np.array([xyz.x, xyz.y, xyz.z], dtype=np.float64)
-                odom_items.append((timestamp.secs * 10e9 + timestamp.nsecs, pose))
 
-            data_dict["odom"] = odom_items
         if "INSPVAX" in elem._type:
             odom_items = []
             for timestamp, msg in msg_list:
                 roll = msg.roll / 180 * np.pi
                 pitch = msg.pitch / 180 * np.pi
                 yaw = msg.azimuth / 180 * np.pi
-                rotation = R.from_euler("xyz", np.array([yaw, pitch, roll], dtype=np.float64)).as_matrix()
+                rotation = R.from_euler("ZYX", np.array([yaw, pitch, roll], dtype=np.float64)).as_matrix()
                 pose = np.eye(4, dtype=np.float64)
                 pose[:3, :3] = rotation
+
+                latitude = msg.latitude
+                longitude = msg.longitude
+                altitude = msg.altitude
+                ecef = self.llu_to_ecef(np.array([latitude, longitude, altitude]))
+                pose[:3, 3] = ecef
 
                 span_to_lidar = self.span_to_lidar()
                 pose = pose.dot(span_to_lidar)
@@ -191,7 +223,13 @@ class UrbanLocoDataset(RosbagDataset):
             data_dict["numpy_pc_timestamps"] = timestamps
 
         if self.ground_truth_poses is not None:
-            data_dict["absolute_pose_gt"] = self.ground_truth_poses[index]
+            pose_gt = self.ground_truth_poses[index]
+
+            if self.acquisition == self.ACQUISITION.HONG_KONG:
+                lidar_to_lidar_0 = pose_gt
+            else:
+                lidar_to_lidar_0 = pose_gt
+            data_dict["absolute_pose_gt"] = lidar_to_lidar_0
 
         return data_dict
 
@@ -216,20 +254,6 @@ class UrbanLocoConfig(DatasetConfig):
 
 
 class UrbanLocoDatasetLoader(DatasetLoader):
-    __california_ext_to_lidar = np.array([[0., -1., 0., -5.245e-01],
-                                          [-1., 0., 0., 1.06045],
-                                          [0., 0., -1., 7.98576e-01],
-                                          [0, 0, 0, 1]], dtype=np.float64)
-
-    __hk_body_to_lidar = np.array([[2.67949e-08, -1, 0, 0],
-                                   [1, 2.67949e-08, 0, 0],
-                                   [0, 0, 1, -0.28],
-                                   [0., 0., 0., 1]], dtype=np.float64)
-
-    __hk_body_to_span = np.array([[2.67949e-08, -1, 0, 0],
-                                  [1, 2.67949e-08, 0, 0],
-                                  [0, 0, 1, -0.36],
-                                  [0., 0., 0., 1]], dtype=np.float64)
 
     def span_to_lidar_calib(self, acquisition: UrbanLocoDataset.ACQUISITION):
         if acquisition == UrbanLocoDataset.ACQUISITION.CALIFORNIA:
