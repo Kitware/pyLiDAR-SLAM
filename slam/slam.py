@@ -17,11 +17,15 @@ from slam.eval.eval_odometry import compute_absolute_poses
 from slam.loop_closure.loop_closure import LoopClosure, LoopClosureConfig, LOOP_CLOSURE
 from slam.odometry import ODOMETRY
 from slam.odometry.odometry import OdometryAlgorithm, OdometryConfig
+from slam.preprocessing.preprocessing import Preprocessing
 
 
 # ----------------------------------------------------------------------------------------------------------------------
+
+
 @dataclass
 class SLAMConfig:
+    preprocessing: Optional[Preprocessing] = None
     odometry: Optional[OdometryConfig] = None
     loop_closure: Optional[LoopClosureConfig] = None
     backend: Optional[BackendConfig] = None
@@ -49,6 +53,7 @@ class SLAM:
         self.config = config
 
         # TODO -- Separate Processes for loop_closure and backend
+        self.preprocessing: Optional[Preprocessing] = None
         self.odometry: Optional[OdometryAlgorithm] = None
         self.loop_closure: Optional[LoopClosure] = None
         self.backend: Optional[Backend] = None
@@ -67,6 +72,10 @@ class SLAM:
         An initialization procedure called at the start of each sequence
         """
         self._frame_idx = 0
+
+        if self.preprocessing is None and self.config.preprocessing is not None:
+            self.preprocessing = Preprocessing(self.config.preprocessing, **self.__kwargs)
+
         if self.odometry is None:
             assert self.config.odometry is not None
             self.odometry = ODOMETRY.load(self.config.odometry, **self.__kwargs)
@@ -90,6 +99,9 @@ class SLAM:
             data_dict (dict): The new frame (consisting of a dictionary of data items) returned by the Dataset
         """
         beginning = time.time()
+        if self.preprocessing is not None:
+            self.preprocessing.forward(data_dict)
+
         self.odometry.process_next_frame(data_dict)
         step_odometry = time.time()
         self.elapsed_loop_closure.append(step_odometry - beginning)

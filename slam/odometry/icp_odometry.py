@@ -10,12 +10,12 @@ from slam.dataset import DatasetLoader
 from slam.odometry.alignment import RigidAlignmentConfig, RIGID_ALIGNMENT, RigidAlignment
 from slam.odometry.initialization import InitializationConfig, INITIALIZATION, Initialization
 from slam.odometry.odometry import *
-from slam.odometry.local_map import LOCAL_MAP, LocalMapConfig, LocalMap, KdTreeLocalMap
-from slam.odometry.preprocessing import PreprocessingConfig, Preprocessing
+from slam.odometry.local_map import LOCAL_MAP, LocalMapConfig, LocalMap
+from slam.preprocessing.preprocessing import PreprocessingConfig, Preprocessing
 from slam.viz.color_map import *
 
 if _with_viz3d:
-    from viz3d.window import OpenGLWindow, logging
+    from viz3d.window import OpenGLWindow
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -28,9 +28,6 @@ class ICPFrameToModelConfig(OdometryConfig):
     device: str = "cpu"
     pose: str = "euler"
     max_num_alignments: int = 100
-
-    # Config for the preprocessing layer
-    preprocessing: PreprocessingConfig = MISSING
 
     # Config for the Initialization
     initialization: InitializationConfig = MISSING
@@ -74,8 +71,6 @@ class ICPFrameToModel(OdometryAlgorithm):
 
         # --------------------------------
         # Loads Components from the Config
-
-        self._preprocessing: Preprocessing = Preprocessing(config.preprocessing, device=self.device)
 
         self._motion_model: Initialization = INITIALIZATION.load(self.config.initialization,
                                                                  pose=self.pose, device=device)

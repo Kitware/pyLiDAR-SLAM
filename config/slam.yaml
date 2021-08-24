@@ -7,6 +7,10 @@ dataset:
   with_numpy_pc: true # Whether to add numpy_pc in the data_dict
 
 slam:
+
+  # Preprocessing config
+  preprocessing: ???
+
   # Odometry config
   odometry: ???
 
