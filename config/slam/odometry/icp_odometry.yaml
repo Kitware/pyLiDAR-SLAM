@@ -8,5 +8,3 @@ data_key: vertex_map # The pointcloud on which the ICP is performed
 local_map: ??? # config of the local map
 initialization: ??? # config of the initialization
 alignment: ??? # config of the rigid alignment
-preprocessing:
-  filters: none # config for the preprocessing filters see odometry/preprocessing
