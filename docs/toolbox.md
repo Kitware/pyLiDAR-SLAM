@@ -28,7 +28,7 @@ For each component, multiple algorithms are implemented, (more will be added in 
 
 > To select the initialization module, pass in argument `slam/odometry/initialization=<init_name>` where `init_name` is one of `CV,EI,PoseNet,NI`.
 
-> All initialization models can be found in [preprocessing.py](../slam/preprocessing/preprocessing.py).
+> All initialization models can be found in [initialization.py](../slam/odometry/initialization.py).
 #### Constant Velocity
 > This model is typically the default model for a LiDAR mounted on a car (which has enough inertia for this model to hold).
 > For other acquisition methods (hand-held or mounted on a segway or a drone which lead to abrupt rotations, this might not be a good enough model)
@@ -50,7 +50,7 @@ For each component, multiple algorithms are implemented, (more will be added in 
 >
 - **Command arguments**: `slam/odometry/initialization=EI` (to visualize the 2D alignments with opencv :`slam.odometry.initialization.debug=true`)
 
-> See [`EIConfig`](../slam/preprocessing/preprocessing.py) and [`ElevationImageRegistration`](../slam/common/registration.py) for more details on the configuration options.
+> See [`EIConfig`](../slam/odometry/initialization.py) and [`ElevationImageRegistration`](../slam/common/registration.py) for more details on the configuration options.
 
 #### PoseNet
 
@@ -91,11 +91,11 @@ python run.py +device=cuda:0 +num_workers=4 dataset=kitti slam/odometry/initiali
 > The preprocessing modules currently implemented are:
 > - **cv_distortion**: applies an initial distortion of the frame following the constant velocity assumption (uses timestamps and the initial pose predicted)
 > - **voxelization**: voxelize a frame computes the voxel statistics mean/covariance
-> - **grid_sampling**: select a point by voxel for a selected voxel size
+> - **grid_sample**: select a point by voxel for a selected voxel size
 > - **none** by default
 
 
-> **Command argument**: `slam/odometry/preprocessing=<module name>`. See [preprocessing.py](../slam/preprocessing/preprocessing.py) for more details.
+> **Command argument**: `slam/preprocessing=<module name>`. See [preprocessing.py](../slam/preprocessing/preprocessing.py) for more details.
 
 # Odometry 
 

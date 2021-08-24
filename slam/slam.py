@@ -34,7 +34,9 @@ class SLAMConfig:
 class SLAM:
     """A SLAM Algorithm for Point Cloud data (typically LiDAR Data)
 
-    A SLAM of pyLIDAR-SLAM consists of three modules
+    A SLAM of pyLIDAR-SLAM consists of four modules
+
+        - Preprocessing     An Optional Preprocessing module which modifies the data_dict
 
         - Odometry:         The Scan Matching algorithm which iteratively estimate the trajectory
                             And produces frame-to-frame trajectory constraints i -> (i+1)

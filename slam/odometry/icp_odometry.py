@@ -140,9 +140,6 @@ class ICPFrameToModel(OdometryAlgorithm):
             data_dict (dict): The input frame to be processed.
                               The key 'self.config.data_key' is required
         """
-        # Launch the preprocessing steps
-        self._preprocessing.forward(data_dict)
-
         # Reads the input frame
         self._read_input(data_dict)
 

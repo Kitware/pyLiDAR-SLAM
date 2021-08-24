@@ -27,6 +27,6 @@ defaults:
   - slam/odometry/local_map: kdtree
   - slam/odometry/initialization: CV
   - slam/odometry/alignment: point_to_plane_GN
-  - slam/odometry/preprocessing: none
+  - slam/preprocessing: none
   - hydra/output: slam
 
