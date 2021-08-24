@@ -12,7 +12,7 @@ from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig, OmegaConf
 
 from slam.common.projection import SphericalProjector
-from slam.common.utils import assert_debug
+from slam.common.utils import assert_debug, remove_nan
 from slam.dataset import DatasetLoader, DatasetConfig
 
 try:
@@ -92,57 +92,52 @@ if _with_rosbag:
             return self
 
         @staticmethod
-        def decode_pointclouds(msgs: list, xyz_fieldname: str = "xyz") -> Tuple[
+        def decode_pointcloud(msg: pc2.PointCloud2, timestamp, xyz_fieldname: str = "xyz") -> Tuple[
             Optional[np.ndarray], Optional[np.ndarray]]:
-            if len(msgs) == 0:
-                return None, None
-            if "PointCloud2" in msgs[0][1]._type:
-                pcs = [np.array(list(pc2.read_points(msg, field_names=xyz_fieldname))) for t, msg in msgs]
-                timestamps = np.concatenate([np.ones((pcs[i].shape[0],),
-                                                     dtype=np.float64) * (
-                                                         float(msgs[i][0].secs * 10e9) + msgs[i][0].nsecs) for
-                                             i
-                                             in range(len(msgs))])
-                pcs = np.concatenate(pcs)
+            assert_debug("PointCloud2" in msg._type)
+            pc = np.array(list(pc2.read_points(msg, field_names=xyz_fieldname)))
+            timestamps = np.ones((pc.shape[0],),
+                                 dtype=np.float64) * (float(timestamp.secs * 10e9) + timestamp.nsecs)
+            return pc, timestamps
 
-                return pcs, timestamps
-            else:
-                return None, None
+        def aggregate_messages(self, data_dict: dict):
+            """Aggregates the point clouds of the main topic"""
+            main_key = self.topic_mapping[self.main_topic]
+            pcs = data_dict[main_key]
+            data_dict[main_key] = np.concatenate(pcs, axis=0)
+            timestamps_topic = f"{main_key}_timestamps"
+            if timestamps_topic in data_dict:
+                data_dict[timestamps_topic] = np.concatenate(data_dict[timestamps_topic], axis=0)
+            return data_dict
 
-        def decode_data(self, _key: str, data_dict: dict, msg_list: list, **kwargs):
-            """Decodes data and insert into a data_dict"""
-            if len(msg_list) == 0:
-                return
-
-            elem = msg_list[0][1]
-            if "PointCloud2" in elem._type:
-                data, timestamps = self.decode_pointclouds(msg_list)
-                if data is not None:
-                    data_dict[_key] = data
-                if timestamps is not None:
-                    data_dict[f"{_key}_timestamps"] = timestamps
-
-        def _convert(self, data_dict):
-            new_dict = dict()
-            for key, msgs in data_dict.items():
-                _key = self.topic_mapping[key]
-                self.decode_data(_key, new_dict, msgs)
-
-            return new_dict
+        def _save_topic(self, data_dict, key, topic, msg, t, **kwargs):
+            if "PointCloud2" in msg._type:
+                data, timestamps = self.decode_pointcloud(msg, t)
+                data_dict[key].append(data)
+                timestamps_key = f"{key}_timestamps"
+                if timestamps_key not in data_dict:
+                    data_dict[timestamps_key] = []
+                data_dict[timestamps_key].append(timestamps)
 
         def __getitem__(self, index) -> dict:
             assert_debug(index == self.__idx, "A RosbagDataset does not support Random access")
+            assert isinstance(self.config, RosbagConfig)
             if self.__iter is None:
                 self.__iter__()
 
-            data_dict = {topic: [] for topic in self._topics}
+            data_dict = {key: [] for key in self.topic_mapping.values()}
+            main_topic_key = self.topic_mapping[self.main_topic]
+
             # Append Messages until the main topic has the required number of messages
-            while len(data_dict[self.main_topic]) < self._frame_size:
+            while len(data_dict[main_topic_key]) < self._frame_size:
                 topic, msg, t = next(self.__iter)
-                data_dict[topic].append((t, msg))
+                _key = self.topic_mapping[topic]
+                self._save_topic(data_dict, _key, topic, msg, t, frame_index=index)
 
             self.__idx += 1
-            return self._convert(data_dict)
+            # Aggregate data
+            data_dict = self.aggregate_messages(data_dict)
+            return data_dict
 
         def __next__(self):
             return self[self.__idx]

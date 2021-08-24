@@ -111,13 +111,20 @@ class UrbanLocoDataset(RosbagDataset):
                                    [0., 0., 0., 1]], dtype=np.float64)
 
     def __init__(self, config: RosbagConfig, acquisition: ACQUISITION,
-                 absolute_gt_poses: Optional[np.ndarray] = None) -> object:
+                 absolute_gt_poses: Optional[np.ndarray] = None, synchronise_azimuth: bool = True,
+                 azimuth_bin: int = -179) -> object:
         super().__init__(config, config.file_path, self.pointcloud_topic(acquisition),
                          1, self._topics_mapping(acquisition))
 
         # Build the conversion from GPS coordinates (lat, long, alt) to global xyz
         self.acquisition = acquisition
         self.ground_truth_poses = absolute_gt_poses
+
+        self.synchronise_azimuth = synchronise_azimuth
+        self.azimuth_bin = azimuth_bin
+        self.current_frame = []
+        self.current_timestamps = []
+        self.skip_frame = False
 
     @staticmethod
     def pointcloud_topic(acquisition: ACQUISITION):
@@ -154,56 +161,21 @@ class UrbanLocoDataset(RosbagDataset):
         n = a * a / np.sqrt(a * a * np.cos(lat) * np.cos(lat) + b * b * np.sin(lat) * np.sin(lat))
         Rx = (n + alt) * np.cos(lat) * np.cos(lon)
         Ry = (n + alt) * np.cos(lat) * np.sin(lon)
-        Rz = (b * b / (a * a) * n + alt) * np.sin(lat);
+        Rz = (b * b / (a * a) * n + alt) * np.sin(lat)
         ecef[0] = Rx
         ecef[1] = Ry
         ecef[2] = Rz
         return ecef
 
-    def decode_data(self, _key: str, data_dict: dict, msg_list: list, **kwargs):
-        super().decode_data(_key, data_dict, msg_list, **kwargs)
-        if len(msg_list) == 0:
-            return
-        elem = msg_list[0][1]
-
-        if "INSPVAX" in elem._type:
-            odom_items = []
-            for timestamp, msg in msg_list:
-                roll = msg.roll / 180 * np.pi
-                pitch = msg.pitch / 180 * np.pi
-                yaw = msg.azimuth / 180 * np.pi
-                rotation = R.from_euler("ZYX", np.array([yaw, pitch, roll], dtype=np.float64)).as_matrix()
-                pose = np.eye(4, dtype=np.float64)
-                pose[:3, :3] = rotation
-
-                latitude = msg.latitude
-                longitude = msg.longitude
-                altitude = msg.altitude
-                ecef = self.llu_to_ecef(np.array([latitude, longitude, altitude]))
-                pose[:3, 3] = ecef
-
-                span_to_lidar = self.span_to_lidar()
-                pose = pose.dot(span_to_lidar)
-                odom_items.append((timestamp.secs * 10e9 + timestamp.nsecs, pose))
-
-            data_dict["gps_pose"] = odom_items
-
-    def __getitem__(self, index):
-        data_dict = super().__getitem__(index)
-
-        del data_dict["numpy_pc_timestamps"]
-
+    def estimate_timestamps(self, frame_index: int, pc: np.ndarray):
         if self.acquisition == self.ACQUISITION.CALIFORNIA:
-            pc = data_dict["numpy_pc"]
-
             num_packets = pc.shape[0] / (12 * 32)
-            timestamps = np.arange(num_packets).reshape(1, int(num_packets), 1)
-            timestamps = timestamps.repeat(32, axis=0).repeat(12, axis=2).reshape(-1).astype(np.float64)
-            timestamps = (timestamps - timestamps.min()) / (timestamps.max() - timestamps.min())
-            data_dict["numpy_pc_timestamps"] = timestamps + index
+            _packet_ids = np.arange(num_packets).reshape(1, int(num_packets), 1)
+            _packet_ids = _packet_ids.repeat(32, axis=0).repeat(12, axis=2).reshape(-1).astype(np.float64)
+            timestamps = (_packet_ids - _packet_ids.min()) / (_packet_ids.max() - _packet_ids.min())
+            return pc, timestamps + frame_index, _packet_ids
         else:
-            numpy_pc = data_dict["numpy_pc"]
-            thetas = np.arctan2(np.linalg.norm(numpy_pc[:, :2], axis=1), numpy_pc[:, 2])
+            thetas = np.arctan2(np.linalg.norm(pc[:, :2], axis=1), pc[:, 2])
             bin_size = 0.1 / 180. * np.pi
             thetas_bins = (thetas / bin_size).astype(np.int32)
 
@@ -217,10 +189,86 @@ class UrbanLocoDataset(RosbagDataset):
             _packet_ids = _packet_ids[_filter]
             t_min = _packet_ids.min()
             t_max = _packet_ids.max()
-            timestamps = (_packet_ids - t_min) / (t_max - t_min) + index
+            timestamps = (_packet_ids - t_min) / (t_max - t_min) + frame_index
 
-            data_dict["numpy_pc"] = numpy_pc[_filter]
-            data_dict["numpy_pc_timestamps"] = timestamps
+            return pc[_filter], timestamps, _packet_ids
+
+    def _save_topic(self, data_dict, key, topic, msg, timestamp, frame_index: int = -1, **kwargs):
+        if "PointCloud2" in msg._type:
+            data, timestamps = self.decode_pointcloud(msg, timestamp)
+            pc, timestamps, _packet_ids = self.estimate_timestamps(frame_index, data)
+
+            if self.synchronise_azimuth:
+                sorted_indices = np.argsort(timestamps)
+                pc = pc[sorted_indices]
+                timestamps = timestamps[sorted_indices]
+                _packet_ids = _packet_ids[sorted_indices]
+
+                azimuth_bins = (np.arctan2(pc[:, 1], pc[:, 0]) * 180 / np.pi).astype(np.int32)
+                indices = np.nonzero(azimuth_bins == self.azimuth_bin)[0]
+                first_id = indices[0]
+                last_id = indices[1]
+
+                first_packet_id = _packet_ids[first_id]
+                last_packet_id = _packet_ids[last_id]
+                current_frame_filter = _packet_ids <= first_packet_id
+
+                self.current_frame.append(pc[current_frame_filter])
+                self.current_timestamps.append(timestamps[current_frame_filter])
+
+                current_frame = np.concatenate(self.current_frame, axis=0)
+                current_timestamps = np.concatenate(self.current_timestamps, axis=0)
+                self.current_timestamps.clear()
+                self.current_frame.clear()
+                self.current_frame.append(pc[~current_frame_filter])
+                num_old_points = self.current_frame[0].shape[0]
+                frame_size = current_frame.shape[0]
+                print(frame_size)
+                self.current_timestamps.append(timestamps[~current_frame_filter])
+
+                if abs(last_packet_id - first_packet_id) > 50 or last_packet_id <= 1:
+                    self.skip_frame = True  # The next frame returned in the remaining points
+            else:
+                current_frame = pc
+                current_timestamps = timestamps
+                self.skip_frame = False
+
+            data_dict[key].append(current_frame)
+            timestamps_key = f"{key}_timestamps"
+            if timestamps_key not in data_dict:
+                data_dict[timestamps_key] = []
+            data_dict[timestamps_key].append(current_timestamps)
+
+        if "INSPVAX" in msg._type:
+            roll = msg.roll / 180 * np.pi
+            pitch = msg.pitch / 180 * np.pi
+            yaw = msg.azimuth / 180 * np.pi
+            rotation = R.from_euler("ZYX", np.array([yaw, pitch, roll], dtype=np.float64)).as_matrix()
+            pose = np.eye(4, dtype=np.float64)
+            pose[:3, :3] = rotation
+
+            latitude = msg.latitude
+            longitude = msg.longitude
+            altitude = msg.altitude
+            ecef = self.llu_to_ecef(np.array([latitude, longitude, altitude]))
+            pose[:3, 3] = ecef
+
+            span_to_lidar = self.span_to_lidar()
+            pose = pose.dot(span_to_lidar)
+            data_dict[key].append((timestamp.secs * 10e9 + timestamp.nsecs, pose))
+        return data_dict
+
+    def __getitem__(self, index):
+        if self.skip_frame:
+            data_dict = dict()
+            data_dict["numpy_pc"] = np.concatenate(self.current_frame, axis=0)
+            data_dict["numpy_pc_timestamps"] = np.concatenate(self.current_timestamps, axis=0)
+            self.current_timestamps.clear()
+            self.current_frame.clear()
+            self.skip_frame = False
+            return data_dict
+
+        data_dict = super().__getitem__(index)
 
         if self.ground_truth_poses is not None:
             pose_gt = self.ground_truth_poses[index]
@@ -252,15 +300,11 @@ class UrbanLocoConfig(DatasetConfig):
     up_fov: int = 25
     down_fov: int = -24
 
+    synchronise_azimuth: bool = True
+    synchronisation_angle: int = -179
+
 
 class UrbanLocoDatasetLoader(DatasetLoader):
-
-    def span_to_lidar_calib(self, acquisition: UrbanLocoDataset.ACQUISITION):
-        if acquisition == UrbanLocoDataset.ACQUISITION.CALIFORNIA:
-            return self.__california_ext_to_lidar
-        else:
-            return self.__hk_body_to_lidar.dot(np.linalg.inv(self.__hk_body_to_span))
-
     __seqname_to_filename = {
         "CABayBridge": "CA-20190828151211_blur_align.bag",
         "CAMarketStreet": "CA-20190828155828_blur_align.bag",
@@ -393,7 +437,9 @@ class UrbanLocoDatasetLoader(DatasetLoader):
                 acquisition = self.__seqname_to_acquisition[sequence]
                 config = self.rosbag_config(sequence)
                 poses = self.get_ground_truth(sequence, relative=False)
-                dataset = UrbanLocoDataset(config, acquisition, poses)
+                dataset = UrbanLocoDataset(config, acquisition, poses,
+                                           synchronise_azimuth=self.config.synchronise_azimuth,
+                                           azimuth_bin=int(self.config.synchronisation_angle))
                 datasets.append(dataset)
 
             return datasets
