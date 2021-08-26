@@ -111,7 +111,6 @@ if _with_ct_icp:
             options = pct.OdometryOptions()
 
             for field_name in self.__dict__:
-
                 if field_name == "ct_icp_options":
                     field_value = CTICPOptionsWrapper(**getattr(self, field_name))
                     setattr(options, field_name, field_value.to_pct_object())
