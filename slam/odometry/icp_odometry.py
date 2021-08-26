@@ -46,7 +46,7 @@ class ICPFrameToModelConfig(OdometryConfig):
     # The data key which is used to search into the data dictionary for the pointcloud to register onto the new frame
     data_key: str = "vertex_map"
 
-    viz_debug: bool = True  # Whether to display the FM in a window (if exists)
+    viz_debug: bool = False  # Whether to display the FM in a window (if exists)
 
     # Visualization parameters
     viz_with_edl: bool = True
