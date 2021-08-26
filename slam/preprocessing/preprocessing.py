@@ -240,11 +240,7 @@ class PreprocessingConfig:
 
 # -- Hydra add default configurations
 cs = ConfigStore.instance()
-<<<<<<< HEAD:slam/preprocessing/preprocessing.py
 cs.store(group="slam/preprocessing", name="none", node=PreprocessingConfig(filters=OmegaConf.create(dict())))
-=======
-cs.store(group="slam/odometry/preprocessing", name="none", node=PreprocessingConfig(filters=None))
->>>>>>> [feat] Introduce the ObjectLoaderEnum to refactor the config selection:slam/odometry/preprocessing.py
 
 
 # ----------------------------------------------------------------------------------------------------------------------

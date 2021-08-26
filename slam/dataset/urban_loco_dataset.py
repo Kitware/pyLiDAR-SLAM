@@ -177,6 +177,7 @@ class UrbanLocoDataset(RosbagDataset):
         self.current_frame = []
         self.current_timestamps = []
         self.skip_frame = False
+        self.use_first_id = False
 
     @staticmethod
     def pointcloud_topic(acquisition: ACQUISITION):
@@ -259,27 +260,40 @@ class UrbanLocoDataset(RosbagDataset):
                 azimuth_bins = (np.arctan2(pc[:, 1], pc[:, 0]) * 180 / np.pi).astype(np.int32)
                 indices = np.nonzero(azimuth_bins == self.azimuth_bin)[0]
                 first_id = indices[0]
-                last_id = indices[1]
+
+                last_id = indices[-1]
 
                 first_packet_id = _packet_ids[first_id]
                 last_packet_id = _packet_ids[last_id]
-                current_frame_filter = _packet_ids <= first_packet_id
+
+                self.use_first_id = len(self.current_frame) > 0 and self.current_frame[0].shape[0] > 30000
+
+                set_current_frame: bool = True
+                if last_packet_id <= 1 and len(self.current_frame) == 0:
+                    # No previous saved points : return the full pointcloud
+                    current_frame_filter = np.ones((_packet_ids.shape[0],), dtype=np.bool)
+                    set_current_frame = False
+                else:
+                    current_frame_filter = _packet_ids <= (first_packet_id if self.use_first_id else last_packet_id)
 
                 self.current_frame.append(pc[current_frame_filter])
                 self.current_timestamps.append(timestamps[current_frame_filter])
 
                 current_frame = np.concatenate(self.current_frame, axis=0)
                 current_timestamps = np.concatenate(self.current_timestamps, axis=0)
+
                 self.current_timestamps.clear()
                 self.current_frame.clear()
-                self.current_frame.append(pc[~current_frame_filter])
-                num_old_points = self.current_frame[0].shape[0]
-                frame_size = current_frame.shape[0]
-                print(frame_size)
-                self.current_timestamps.append(timestamps[~current_frame_filter])
+                if set_current_frame:
+                    self.current_frame.append(pc[~current_frame_filter])
+                    self.current_timestamps.append(timestamps[~current_frame_filter])
+                    if (self.use_first_id and abs(last_packet_id - first_packet_id) > 50) or \
+                            (last_packet_id <= 1 and self.current_frame[0].shape[0] > 50000):
+                        self.skip_frame = True  # The next frame returned in the remaining points
 
-                if abs(last_packet_id - first_packet_id) > 50 or last_packet_id <= 1:
-                    self.skip_frame = True  # The next frame returned in the remaining points
+                frame_size = current_frame.shape[0]
+                if frame_size < 3000:
+                    print(f"[ERROR] {frame_size} is small")
             else:
                 current_frame = pc
                 current_timestamps = timestamps

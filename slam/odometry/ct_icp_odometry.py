@@ -37,7 +37,7 @@ if _with_ct_icp:
                     if key_type in [str, int, float, bool]:
                         cls.__annotations__[key] = key_type
                         setattr(cls, key, default_value)
-                    elif key_type in [pct.ICP_DISTANCE, pct.LEAST_SQUARES, pct.CT_ICP_DATASET]:
+                    elif key_type in [pct.ICP_DISTANCE, pct.LEAST_SQUARES, pct.CT_ICP_DATASET, pct.MOTION_COMPENSATION]:
                         # Replace pyct_icp enums by string
                         cls.__annotations__[key] = str
                         value_name = default_value.name
@@ -114,6 +114,10 @@ if _with_ct_icp:
                 if field_name == "ct_icp_options":
                     field_value = CTICPOptionsWrapper(**getattr(self, field_name))
                     setattr(options, field_name, field_value.to_pct_object())
+                elif field_name == "motion_compensation":
+                    field_value = getattr(self, field_name)
+                    field_value = getattr(pct.MOTION_COMPENSATION, field_value)
+                    setattr(self, field_name, field_value)
                 else:
                     field_value = getattr(self, field_name)
                     assert_debug(field_value != MISSING)

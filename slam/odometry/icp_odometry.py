@@ -22,8 +22,7 @@ if _with_viz3d:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-@RuntimeDefaultDict.runtime_defaults({"preprocessing": "slam/odometry/preprocessing/none",
-                                      "initialization": "slam/odometry/initialization/CV",
+@RuntimeDefaultDict.runtime_defaults({"initialization": "slam/odometry/initialization/CV",
                                       "local_map": "slam/odometry/local_map/kdtree",
                                       "alignment": "slam/odometry/alignment/point_to_plane_GN"
                                       })

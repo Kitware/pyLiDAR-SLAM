@@ -23,6 +23,7 @@ slam:
 defaults:
   - slam/odometry: icp_odometry
   - dataset: kitti
+  - slam/preprocessing: none
   - slam/loop_closure: none
   - slam/backend: none
   - hydra/output: slam
