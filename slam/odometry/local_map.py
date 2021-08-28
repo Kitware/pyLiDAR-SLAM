@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from typing import Optional, Tuple
 
 import numpy as np
@@ -14,7 +15,8 @@ from slam.common.geometry import projection_map_to_points, compute_neighbors, co
 from slam.common.pose import Pose
 from slam.common.projection import Projector
 from slam.odometry import *
-from slam.common.utils import assert_debug, check_sizes, remove_nan
+from slam.common.utils import assert_debug, check_tensor, TensorType, remove_nan
+from slam.common.utils import ObjectLoaderEnum
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -29,6 +31,12 @@ class LocalMapConfig:
 class LocalMap(ABC):
     """An abstract Local Map for a Frame-to-Model ICP-based Odometry estimation"""
 
+    @dataclass
+    class NeighborhoodResult:
+        neighbor_points: Optional[TensorType] = None
+        neighbor_normals: Optional[TensorType] = None
+        new_target_points: Optional[TensorType] = None
+
     def __init__(self, config: LocalMapConfig, **kwargs):
         super().__init__()
         self.config = config
@@ -40,9 +48,9 @@ class LocalMap(ABC):
         raise NotImplementedError("")
 
     @abstractmethod
-    def update(self, new_relative_pose: torch.Tensor,
-               new_pc_data: Optional[torch.Tensor] = None,
-               new_vertex_map: Optional[torch.Tensor] = None, **kwargs) -> None:
+    def update(self, new_relative_pose: TensorType,
+               new_pc_data: Optional[TensorType] = None,
+               new_vertex_map: Optional[TensorType] = None, **kwargs) -> None:
         """
         Updates the Local Map, by incorporating the new frame registered
 
@@ -55,7 +63,9 @@ class LocalMap(ABC):
         raise NotImplementedError("")
 
     @abstractmethod
-    def nearest_neighbor_search(self, points: torch.Tensor):
+    def nearest_neighbor_search(self, points: TensorType,
+                                with_normals: bool = True,
+                                with_new_target_points: bool = True, **kwargs) -> NeighborhoodResult:
         """
         Finds nearest neighbors correspondences in the map for a set of points
         """
@@ -122,15 +132,16 @@ class ProjectiveLocalMap(LocalMap):
         """
         Updates the local map and (registers a new frame into it)
         """
+        check_tensor(relative_pose, [1, 4, 4], torch.Tensor)
         if new_vertex_map is not None:
-            check_sizes(new_vertex_map, [1, 3, -1, -1])
+            check_tensor(new_vertex_map, [1, 3, -1, -1])
             _, _, h, w = new_vertex_map.shape
             if new_normal_map is None:
                 normal_map = compute_normal_map(new_vertex_map, kernel_size=self.config.normals_kernel_size)
-            check_sizes(normal_map, [1, 3, h, w])
+            check_tensor(normal_map, [1, 3, h, w])
             if mask is None:
                 mask = mask_not_null(new_vertex_map)
-            check_sizes(mask, [1, 1, h, w])
+            check_tensor(mask, [1, 1, h, w])
         if self._local_map is None:
             # Initialize the Map
             self._local_map = new_vertex_map
@@ -191,12 +202,15 @@ class ProjectiveLocalMap(LocalMap):
             self._model_nmap = local_nmaps_vmaps[:, 3:6]
 
     # ------------------------------------------------------------------------------------------------------------------
-    def nearest_neighbor_search(self, target_points: torch.Tensor):
+    def nearest_neighbor_search(self, target_points: TensorType,
+                                with_normals: bool = True,
+                                with_new_target_points: bool = True, **kwargs):
         """
         Returns the nearest neighbors by projective data association
 
         Projects the points in the image plane
         """
+        check_tensor(target_points, [-1, 3], torch.Tensor)
 
         new_target_points = target_points
         new_target_vmap = self.projector.build_projection_map(new_target_points.unsqueeze(0))
@@ -205,13 +219,20 @@ class ProjectiveLocalMap(LocalMap):
                                                          self._model_vmap,
                                                          reference_fields=self._model_nmap)
         neighbor_points = projection_map_to_points(neighbor_vmap).reshape(1, -1, 3)
-        neighbor_normals = projection_map_to_points(neighbor_nmap).reshape(1, -1, 3)
 
         new_points = projection_map_to_points(new_target_vmap).reshape(1, -1, 3)
         mask = mask_not_null(new_points, dim=-1) * mask_not_null(neighbor_points, dim=-1)
         mask = mask[:, :, 0]
 
-        return neighbor_points[mask].unsqueeze(0), neighbor_normals[mask].unsqueeze(0), new_points[mask].unsqueeze(0)
+        results = self.NeighborhoodResult()
+        results.neighbor_points = neighbor_points[mask].unsqueeze(0)
+        if with_normals:
+            neighbor_normals = projection_map_to_points(neighbor_nmap).reshape(1, -1, 3)
+            results.neighbor_normals = neighbor_normals[mask].unsqueeze(0)
+        if with_new_target_points:
+            results.new_target_points = new_points[mask].unsqueeze(0)
+
+        return results
 
     # ------------------------------------------------------------------------------------------------------------------
     def get_last_frame(self) -> torch.Tensor:
@@ -265,9 +286,22 @@ class KdTreeLocalMap(LocalMap):
         self._old_model = None
 
     # ------------------------------------------------------------------------------------------------------------------
+    def set_map_pointcloud(self, pointcloud: np.ndarray, normals: Optional[np.ndarray] = None):
+        """
+        Builds a new map from the aggregated pointcloud `pointcloud`
+        """
+        check_tensor(pointcloud, [-1, 3], np.ndarray)
+        self.init()
+        self._local_map = pointcloud
+        self.build_model()
+        if normals is not None:
+            check_tensor(normals, [*pointcloud.shape], np.ndarray)
+            self._model_normals = normals
+
+    # ------------------------------------------------------------------------------------------------------------------
     def update(self,
-               relative_pose: torch.Tensor,
-               new_pc_data: Optional[torch.Tensor] = None,
+               relative_pose: TensorType,
+               new_pc_data: Optional[TensorType] = None,
                new_vertex_map: Optional[torch.Tensor] = None,
                **kwargs):
         """
@@ -284,7 +318,7 @@ class KdTreeLocalMap(LocalMap):
             else:
                 raise ValueError("Expected a numpy.ndarray or a torch.Tensor")
         elif new_vertex_map is not None:
-            check_sizes(new_vertex_map, [1, 3, -1, -1])
+            check_tensor(new_vertex_map, [1, 3, -1, -1])
             _, _, h, w = new_vertex_map.shape
             torch_pc = new_vertex_map[0].permute(1, 2, 0).view(1, -1, 3)
             numpy_pc = torch_pc[torch_pc.norm(dim=-1) > 0.01].cpu().numpy()
@@ -292,6 +326,11 @@ class KdTreeLocalMap(LocalMap):
         if numpy_pc is not None:
             numpy_pc, _filter = remove_nan(numpy_pc)
             num_elements = numpy_pc.shape[0]
+
+        if isinstance(relative_pose, torch.Tensor):
+            check_tensor(relative_pose, [1, 4, 4])
+            relative_pose = relative_pose[0].cpu().numpy()
+        check_tensor(relative_pose, [4, 4], np.ndarray)
 
         if self._local_map is None:
             # Initialize the Map
@@ -304,7 +343,7 @@ class KdTreeLocalMap(LocalMap):
             self._model_normals = None
 
             # Shift local map to the last entry CS
-            relative_pose_i = np.linalg.inv(relative_pose[0])
+            relative_pose_i = np.linalg.inv(relative_pose)
             transformed_map = np.einsum("ij,nj->ni",
                                         relative_pose_i[:3, :3], self._local_map) + relative_pose_i[:3, 3].reshape(1, 3)
 
@@ -323,27 +362,37 @@ class KdTreeLocalMap(LocalMap):
         self.build_model()
 
     # ------------------------------------------------------------------------------------------------------------------
-    def build_model(self) -> (torch.Tensor, torch.Tensor):
+    def build_model(self):
         """Builds the KdTree and initialize the computation of the normals"""
         self._model_points = self._local_map
         self._model_normals = np.zeros((self._model_points.shape[0], 4), dtype=np.float32)
         self._model_kdtree = KDTree(self._model_points)
 
     # ------------------------------------------------------------------------------------------------------------------
-    def nearest_neighbor_search(self, target_points: torch.Tensor):
+    def nearest_neighbor_search(self, target_points: TensorType,
+                                with_normals: bool = True,
+                                with_new_target_points: bool = True, **kwargs) -> LocalMap.NeighborhoodResult:
         """
-        Returns the nearest neighbors by projective data association
+        Returns the nearest neighbors, and associated normals computed with a KdTree
         """
-        numpy_points = target_points.cpu().numpy()
-        distances, indices = self._model_kdtree.query(numpy_points)
+        is_torch = isinstance(target_points, torch.Tensor)
+        if is_torch:
+            numpy_points = target_points.cpu().numpy()
+        else:
+            numpy_points = target_points
+        check_tensor(numpy_points, [-1, 3], np.ndarray)
 
-        # Compute normals
-        normals = self.__get_normals(indices[:])
+        distances, indices = self._model_kdtree.query(numpy_points)
         neighbors = self._model_points[indices[:]]
 
-        return torch.from_numpy(neighbors).unsqueeze(0), \
-               torch.from_numpy(normals).unsqueeze(0), \
-               target_points.reshape(1, neighbors.shape[0], 3)
+        result = self.NeighborhoodResult()
+        result.neighbor_points = torch.from_numpy(neighbors).unsqueeze(0) if is_torch else neighbors
+        if with_normals:
+            normals = self.__get_normals(indices[:])
+            result.neighbor_normals = torch.from_numpy(normals).unsqueeze(0) if is_torch else normals
+        if with_new_target_points:
+            result.new_target_points = target_points.reshape(1, neighbors.shape[0], 3) if is_torch else target_points
+        return result
 
     def __get_normals(self, indices):
         # Compute normals for points whose normals is not already computed
@@ -385,13 +434,12 @@ cs.store(group="slam/odometry/local_map", name="projective", node=ProjectiveLoca
 cs.store(group="slam/odometry/local_map", name="kdtree", node=KdTreeLocalMapConfig)
 
 
-class LOCAL_MAP(Enum):
+class LOCAL_MAP(ObjectLoaderEnum, Enum):
     """Convenient Enum to load LocalMap from configuration"""
-    projective_local_map = ProjectiveLocalMap
-    kdtree_local_map = KdTreeLocalMap
 
-    @staticmethod
-    def load(config: LocalMapConfig, **kwargs):
-        map_type = config.type
-        assert_debug(map_type in LOCAL_MAP.__members__)
-        return LOCAL_MAP.__members__[map_type].value(config, **kwargs)
+    projective_local_map = (ProjectiveLocalMap, ProjectiveLocalMapConfig)
+    kdtree_local_map = (KdTreeLocalMap, KdTreeLocalMapConfig)
+
+    @classmethod
+    def type_name(cls):
+        return "type"

@@ -11,8 +11,8 @@ from hydra.conf import field, dataclass
 from slam.common.pose import Pose
 from slam.common.timer import *
 from slam.odometry import *
-from slam.common.utils import assert_debug
 from slam.common.modules import _with_cv2
+from slam.common.utils import assert_debug, ObjectLoaderEnum
 from slam.training.prediction_modules import _PoseNetPredictionModule
 
 if _with_cv2:
@@ -162,7 +162,7 @@ if _with_cv2:
             pc_numpy = data_dict["numpy_pc_0"]
 
             # Build elevation image
-            image, kpts, desc = self.algorithm.compute_features(pc_numpy)
+            image, kpts, desc, _ = self.algorithm.compute_features(pc_numpy)
 
             # Extract KeyPoints and descriptors
             result = None
@@ -281,12 +281,13 @@ cs.store(group="slam/odometry/initialization", name="PoseNet", node=PNConfig)
 cs.store(group="slam/odometry/initialization", name="NI", node=NIConfig())
 
 if _with_cv2:
-    cs.store(group="odometry/initialization", name="EI", node=EIConfig)
+    cs.store(group="slam/odometry/initialization", name="EI", node=EIConfig)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class INITIALIZATION(Enum):
+class INITIALIZATION(ObjectLoaderEnum, Enum):
     """A Convenient enum to load the Algorithm from a config dictionary"""
+
     ni = (NoInitialization, NIConfig)
     cv = (ConstantVelocityInitialization, CVConfig)
     posenet = (PoseNetInitialization, PNConfig)
@@ -294,10 +295,6 @@ class INITIALIZATION(Enum):
     if _with_cv2:
         ei = (ElevationImageInitialization, EIConfig)
 
-    @staticmethod
-    def load(config: InitializationConfig, **kwargs) -> Initialization:
-        _type = config.type
-        assert_debug(_type in INITIALIZATION.__members__)
-        _algo, _config = INITIALIZATION.__members__[_type].value
-
-        return _algo(_config(**config), **kwargs)
+    @classmethod
+    def type_name(cls):
+        return "type"

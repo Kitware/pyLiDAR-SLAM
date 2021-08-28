@@ -1,6 +1,6 @@
 from abc import ABC
 from enum import Enum
-from typing import Dict
+from typing import Dict, Optional, Any
 
 import numpy as np
 from scipy.spatial.transform.rotation import Rotation as R, Slerp
@@ -10,8 +10,8 @@ from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig, OmegaConf
 import torch
 
-from slam.common.utils import assert_debug, check_sizes
-from slam.common.pointcloud import voxel_hashing, voxelise, voxel_normal_distribution, grid_sample
+from slam.common.utils import assert_debug, check_tensor
+from slam.common.pointcloud import voxel_hashing, voxelise, voxel_normal_distribution, sample_from_hashes
 
 # Hydra and OmegaConf
 from hydra.conf import MISSING, dataclass
@@ -75,7 +75,7 @@ class Voxelization(Filter):
 
         pointcloud = data_dict[self.config.input_channel]
         assert_debug(isinstance(pointcloud, np.ndarray))
-        check_sizes(pointcloud, [-1, 3])
+        check_tensor(pointcloud, [-1, 3])
 
         voxel_coordinates = voxelise(pointcloud,
                                      self.config.voxel_size,
@@ -146,13 +146,13 @@ class CVDistortion(Filter):
         assert isinstance(self.config, CVDistortionConfig)
         pc = data_dict[self.config.pointcloud_key]
         assert_debug(isinstance(pc, np.ndarray), "Cannot Distort a non numpy frame")
-        check_sizes(pc, [-1, 3])
+        check_tensor(pc, [-1, 3])
         rpose = data_dict[self.config.pose_key]
-        check_sizes(pc, [4, 4])
+        check_tensor(pc, [4, 4])
         timestamps = data_dict[self.config.timestamps_key]
         timestamps = timestamps.reshape(-1)
         assert_debug(isinstance(timestamps, np.ndarray))
-        check_sizes(timestamps, [pc.shape[0]])
+        check_tensor(timestamps, [pc.shape[0]])
 
         rot_times = R.from_matrix(np.array([np.eye(3, dtype=np.float64), rpose[:3, :3].astype(np.float64)]))
         key_times = [0.0, 1.0]
@@ -193,13 +193,13 @@ class GridSample(Filter):
 
         pc = data_dict[self.config.pointcloud_key]
         assert_debug(isinstance(pc, np.ndarray), "Cannot Distort a non numpy frame")
-        check_sizes(pc, [-1, 3])
+        check_tensor(pc, [-1, 3])
 
         voxel_coords = voxelise(pc, self.config.voxel_size, self.config.voxel_size, self.config.voxel_size)
         voxel_hashes = np.zeros((pc.shape[0]), dtype=np.int64)
         voxel_hashing(voxel_coords, voxel_hashes)
 
-        sample, indices = grid_sample(pc, voxel_hashes)
+        sample, indices = sample_from_hashes(pc, voxel_hashes)
         data_dict[self.config.output_sample_key] = sample
         data_dict[self.config.output_indices_key] = indices
 
@@ -235,7 +235,7 @@ class FILTER(Enum):
 @dataclass
 class PreprocessingConfig:
     """The configuration for `Preprocessing`"""
-    filters: Dict[str, Dict] = MISSING
+    filters: Optional[Dict[str, Any]] = None
 
 
 # -- Hydra add default configurations

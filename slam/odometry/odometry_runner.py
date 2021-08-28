@@ -21,12 +21,17 @@ from hydra.conf import dataclass, MISSING, field
 # Project Imports
 from slam.common.pose import Pose
 from slam.common.torch_utils import collate_fun
-from slam.common.utils import check_sizes, assert_debug, get_git_hash
+from slam.common.utils import check_tensor, assert_debug, get_git_hash
 from slam.dataset import DatasetLoader, DATASET
 from slam.eval.eval_odometry import OdometryResults
 from slam.dataset.configuration import DatasetConfig
 
 from slam.slam import SLAMConfig, SLAM
+
+from slam.viz import _with_cv2
+
+if _with_cv2:
+    import cv2
 
 
 @dataclass
@@ -181,9 +186,9 @@ class SLAMRunner(ABC):
 
             # Evaluate the SLAM if it has a ground truth
             relative_poses = slam.get_relative_poses()
-            check_sizes(relative_poses, [-1, 4, 4])
+            check_tensor(relative_poses, [-1, 4, 4])
             if relative_ground_truth is not None:
-                check_sizes(relative_ground_truth, [relative_poses.shape[0], 4, 4])
+                check_tensor(relative_ground_truth, [relative_poses.shape[0], 4, 4])
 
             del slam
             del dataloader

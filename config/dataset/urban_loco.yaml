@@ -5,7 +5,11 @@ lidar_height: 64
 lidar_width: 720
 up_fov: 3
 down_fov: -24
-train_sequences: [ "CAChinaTown", "CAColiTower",
-                   "HK-Data20190426-1", "HK-Data20190316-2", "HK-Data20190316-1" ]
+train_sequences: [ "CALombardStreet", "CAGoldenBridge",
+                   "CABayBridge", "CAMarketStreet", "CARussianHill",
+                   "CAChinaTown", "CAColiTower",  "HK-Data20190426-2",
+                   "HK-Data20190426-2", "HK-Data20190426-1",
+                   "HK-Data20190316-2", "HK-Data20190316-1" ]
+
 test_sequences: [ ]
 eval_sequences: [ ]

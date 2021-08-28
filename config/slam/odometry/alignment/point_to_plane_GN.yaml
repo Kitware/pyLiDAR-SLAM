@@ -4,5 +4,5 @@ mode: point_to_plane_gauss_newton
 
 gauss_newton_config:
   scheme: geman_mcclure
-  num_gn_iters: 1
   sigma: 0.3
+  max_iters: 1

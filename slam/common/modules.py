@@ -1,6 +1,16 @@
 import logging
 
 # ----------------------------------------------------------------------------------------------------------------------
+# pyct_icp
+try:
+    import pyct_icp
+
+    _with_ct_icp = True
+except ImportError:
+    logging.warning("pyct_icp (wrapping for CT_ICP) not found. Corresponding module disabled.")
+    _with_ct_icp = False
+
+# ----------------------------------------------------------------------------------------------------------------------
 # OpenCV
 try:
     import cv2

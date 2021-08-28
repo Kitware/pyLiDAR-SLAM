@@ -1,12 +1,15 @@
 # Project Imports
 from typing import Optional
 
+from hydra.core.config_store import ConfigStore
+
+from slam.common.utils import RuntimeDefaultDict
 from slam.common.geometry import projection_map_to_points, mask_not_null
 from slam.common.pose import Pose
 from slam.common.projection import Projector
-from slam.common.utils import check_sizes, remove_nan, modify_nan_pmap
 from slam.common.modules import _with_viz3d
 from slam.dataset import DatasetLoader
+from slam.common.utils import check_tensor, remove_nan, modify_nan_pmap
 from slam.odometry.alignment import RigidAlignmentConfig, RIGID_ALIGNMENT, RigidAlignment
 from slam.odometry.initialization import InitializationConfig, INITIALIZATION, Initialization
 from slam.odometry.odometry import *
@@ -19,8 +22,12 @@ if _with_viz3d:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
+@RuntimeDefaultDict.runtime_defaults({"initialization": "slam/odometry/initialization/CV",
+                                      "local_map": "slam/odometry/local_map/kdtree",
+                                      "alignment": "slam/odometry/alignment/point_to_plane_GN"
+                                      })
 @dataclass
-class ICPFrameToModelConfig(OdometryConfig):
+class ICPFrameToModelConfig(OdometryConfig, RuntimeDefaultDict):
     """
     The Configuration for the Point-To-Plane ICP based Iterative Least Square estimation of the pose
     """
@@ -53,6 +60,10 @@ class ICPFrameToModelConfig(OdometryConfig):
     viz_num_pcs: int = 50
 
 
+cs = ConfigStore.instance()
+cs.store(name="icp_odometry", group="slam/odometry", node=ICPFrameToModelConfig)
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 class ICPFrameToModel(OdometryAlgorithm):
     """
@@ -62,6 +73,9 @@ class ICPFrameToModel(OdometryAlgorithm):
     def __init__(self, config: ICPFrameToModelConfig,
                  projector: Projector = None, pose: Pose = Pose("euler"),
                  device: torch.device = torch.device("cpu"), **kwargs):
+        if not isinstance(config, ICPFrameToModelConfig):
+            config = ICPFrameToModelConfig(**config)
+        config = config.completed()
         OdometryAlgorithm.__init__(self, config)
 
         assert_debug(projector is not None)
@@ -77,6 +91,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         self.local_map: LocalMap = LOCAL_MAP.load(self.config.local_map,
                                                   pose=self.pose, projector=projector)
 
+        assert isinstance(self.config, ICPFrameToModelConfig)
         self.config.alignment.pose = self.pose.pose_type
         self.rigid_alignment: RigidAlignment = RIGID_ALIGNMENT.load(self.config.alignment, pose=self.pose)
 
@@ -237,13 +252,16 @@ class ICPFrameToModel(OdometryAlgorithm):
             target_points = self.pose.apply_transformation(old_target_points.unsqueeze(0), new_pose_matrix)[0]
 
             # Compute the nearest neighbors for the selected points
-            neigh_pc, neigh_normals, tgt_pc = self.local_map.nearest_neighbor_search(target_points)
+            result: LocalMap.NeighborhoodResult = self.local_map.nearest_neighbor_search(target_points)
+            neigh_pc = result.neighbor_points
+            neigh_normals = result.neighbor_normals
+            tgt_pc = result.new_target_points
 
             # Compute the rigid transform alignment
-            delta_pose, residuals = self.rigid_alignment.align(neigh_pc,
-                                                               tgt_pc,
-                                                               neigh_normals,
-                                                               **kwargs)
+            delta_pose_matrix, delta_pose, residuals = self.rigid_alignment.align(neigh_pc,
+                                                                                  tgt_pc,
+                                                                                  neigh_normals,
+                                                                                  **kwargs)
 
             loss = residuals.sum()
             losses.append(loss)
@@ -252,7 +270,7 @@ class ICPFrameToModel(OdometryAlgorithm):
                 break
 
             # Manifold normalization to keep proper rotations
-            new_pose_params = self.pose.from_pose_matrix(self.pose.build_pose_matrix(delta_pose) @ new_pose_matrix)
+            new_pose_params = self.pose.from_pose_matrix(delta_pose_matrix @ new_pose_matrix)
             new_pose_matrix = self.pose.build_pose_matrix(new_pose_params)
 
         return new_pose_params, new_pose_matrix, losses
@@ -289,7 +307,7 @@ class ICPFrameToModel(OdometryAlgorithm):
         self._tgt_vmap = None
         self._tgt_pc = None
         if isinstance(data, np.ndarray):
-            check_sizes(data, [-1, 3])
+            check_tensor(data, [-1, 3])
             self._sample_pointcloud = True
             pc_data = torch.from_numpy(data).to(self.device).unsqueeze(0)
             # Project into a spherical image
@@ -302,7 +320,7 @@ class ICPFrameToModel(OdometryAlgorithm):
                     vertex_map = vertex_map.unsqueeze(0)
                 else:
                     assert_debug(data.shape[0] == 1, f"Unexpected batched data format.")
-                check_sizes(vertex_map, [1, 3, -1, -1])
+                check_tensor(vertex_map, [1, 3, -1, -1])
                 pc_data = vertex_map.permute(0, 2, 3, 1).reshape(1, -1, 3)
                 pc_data = pc_data[mask_not_null(pc_data, dim=-1)[:, :, 0]]
 
