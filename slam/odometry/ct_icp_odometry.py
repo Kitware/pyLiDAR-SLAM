@@ -119,7 +119,7 @@ if _with_ct_icp:
                 elif field_name == "motion_compensation":
                     field_value = getattr(self, field_name)
                     field_value = getattr(pct.MOTION_COMPENSATION, field_value)
-                    setattr(self, field_name, field_value)
+                    setattr(options, field_name, field_value)
                 else:
                     field_value = getattr(self, field_name)
                     assert_debug(field_value != MISSING)
@@ -167,7 +167,7 @@ if _with_ct_icp:
         def __init__(self, config: CT_ICPOdometryConfig, **kwargs):
             OdometryAlgorithm.__init__(self, config)
 
-            self.ct_icp_options: Optional[pct.OdometryOptions] = None
+            self.options: Optional[pct.OdometryOptions] = None
             self.ct_icp_odometry: Optional[pct.Odometry] = None
 
             self._has_window = config.debug_viz and _with_viz3d
@@ -185,10 +185,10 @@ if _with_ct_icp:
             """Initialize/ReInitialize the state of the Algorithm and its components"""
             super().init()
 
-            self.ct_icp_options = OdometryOptionsWrapper(**self.config.options).to_pct_object()
-            self.ct_icp_options.debug_print = False
-            self.ct_icp_options.ct_icp_options.debug_print = False
-            self.ct_icp_odometry = pct.Odometry(self.ct_icp_options)
+            self.options = OdometryOptionsWrapper(**self.config.options).to_pct_object()
+            self.options.debug_print = False
+            self.options.ct_icp_options.debug_print = False
+            self.ct_icp_odometry = pct.Odometry(self.options)
 
             self._frame_index = 0
             self.absolute_poses.clear()
@@ -225,7 +225,7 @@ if _with_ct_icp:
 
                 new_points, __filter = remove_nan(numpy_pc)
 
-                if self.ct_icp_options.ct_icp_options.distance == pct.CT_POINT_TO_PLANE:
+                if self.options.ct_icp_options.distance == pct.CT_POINT_TO_PLANE:
                     # CT_ICP requires timestamps
                     assert_debug(self.config.timestamps_key in data_dict,
                                  f"[CT_ICP] The timestamps dict {self.config.timestamps_key} is not in the dict containing keys={data_dict.keys()}.\n"
