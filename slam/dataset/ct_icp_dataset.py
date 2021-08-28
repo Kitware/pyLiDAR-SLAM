@@ -1,3 +1,5 @@
+from typing import Optional, Union
+
 from slam.common.modules import _with_ct_icp
 
 if _with_ct_icp:
@@ -29,6 +31,21 @@ if _with_ct_icp:
 
         The fields of the dataclass are programmatically defined from the attributes of a pct.DatasetOptions
         """
+
+        @staticmethod
+        def build_from_pct(pct_options: pct.DatasetOptions):
+            from dataclasses import _FIELDS
+            assert_debug(isinstance(pct_options, pct.DatasetOptions))
+
+            wrapped = CT_ICPDatasetOptionsWrapper()
+            for _field in getattr(wrapped, _FIELDS):
+                if _field == "dataset":
+                    value_ = getattr(pct_options, _field)
+                    setattr(wrapped, _field, value_.name)
+                else:
+                    setattr(wrapped, _field, getattr(pct_options, _field))
+
+            return wrapped
 
         def to_pct_object(self):
             options = pct.DatasetOptions()
@@ -85,29 +102,35 @@ if _with_ct_icp:
         """
 
         def __init__(self,
-                     options: pct.DatasetOptions,
+                     options: Union[pct.DatasetOptions, CT_ICPDatasetOptionsWrapper],
                      sequence_id: int,
                      gt_pose_channel: str = "absolute_pose_gt",
                      numpy_pc_channel: str = "numpy_pc"):
-            assert isinstance(options, pct.DatasetOptions)
-            self.options: pct.DatasetOptions = options
+            assert isinstance(options, pct.DatasetOptions) or isinstance(options, CT_ICPDatasetOptionsWrapper)
+            self.options: pct.DatasetOptions = options if isinstance(options,
+                                                                     pct.DatasetOptions) else options.to_pct_object()
             assert_debug(self.options.dataset != pct.NCLT, "The NCLT Dataset is not available in Random Access")
             self.dataset_sequences = pct.get_dataset_sequence(self.options, sequence_id)
             self.sequence_id = sequence_id
-            self.gt_pose_channel = gt_pose_channel
-            self.numpy_pc_channel = numpy_pc_channel
-
             self.gt = None
-            if pct.has_ground_truth(options, sequence_id):
-                self.gt = np.array(pct.load_sensor_ground_truth(options, sequence_id), np.float64)
+            self.is_initialized = False
+            if pct.has_ground_truth(self.options, sequence_id):
+                self.gt = np.array(pct.load_sensor_ground_truth(self.options, sequence_id), np.float64)
+            self.numpy_pc_channel = numpy_pc_channel
+            self.gt_pose_channel = gt_pose_channel
+
+        def __reduce__(self):
+            # Make the dataset pickable
+            return CT_ICPDatasetSequence, (CT_ICPDatasetOptionsWrapper.build_from_pct(self.options), self.sequence_id,
+                                           self.gt_pose_channel, self.numpy_pc_channel)
 
         def __len__(self):
             return self.dataset_sequences.NumFrames()
 
         def __getitem__(self, idx) -> dict:
             assert_debug(0 <= idx < len(self), "Index Error")
-            lidar_frame = self.dataset_sequences.Frame(idx)
 
+            lidar_frame = self.dataset_sequences.Frame(idx)
             data_dict = dict()
 
             # Add numpy pc values
@@ -139,7 +162,7 @@ if _with_ct_icp:
 
         def __init__(self, config: CT_ICPDatasetConfig):
             super().__init__(config)
-            self.options: pct.DatasetOptions = CT_ICPDatasetOptionsWrapper(**config.options).to_pct_object()
+            self.options: CT_ICPDatasetOptionsWrapper = CT_ICPDatasetOptionsWrapper(**config.options).to_pct_object()
 
             root_path = Path(self.options.root_path)
             assert_debug(root_path.exists(), f"The root path of the dataset {str(root_path)} does not exist on disk")

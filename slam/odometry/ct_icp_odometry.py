@@ -10,8 +10,10 @@ if _with_ct_icp:
     # Project Imports
     from typing import Optional
     from slam.odometry.odometry import *
+    from hydra.conf import field
     from slam.viz.color_map import *
     from slam.common.modules import _with_viz3d
+
 
     if _with_viz3d:
         from viz3d.window import OpenGLWindow, field

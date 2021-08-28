@@ -15,9 +15,7 @@ from slam.backend.backend import Backend
 from slam.common.modules import _with_cv2, _with_o3d
 from slam.common.pointcloud import grid_sample
 from slam.common.pose import transform_pointcloud
-from slam.common.registration import ElevationImageRegistration
 from slam.common.utils import assert_debug, check_tensor, ObjectLoaderEnum
-
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -73,6 +71,7 @@ class LoopClosure(ABC):
 # ----------------------------------------------------------------------------------------------------------------------
 if _with_cv2:
     import cv2
+    from slam.common.registration import ElevationImageRegistration
 
     if _with_o3d:
         import open3d as o3d
