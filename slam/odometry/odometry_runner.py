@@ -76,9 +76,9 @@ class SLAMRunner(ABC):
         # Pytorch parameters extracted
         self.num_workers = self.config.num_workers
         self.batch_size = 1
-        self.pin_memory = self.config.pin_memory
         self.log_dir = self.config.log_dir
         self.device = torch.device(self.config.device)
+        self.pin_memory = self.config.pin_memory if self.device != torch.device("cpu") else False
 
         self.pose = Pose(self.config.pose)
         self.viz_num_pointclouds = self.config.viz_num_pointclouds
@@ -130,9 +130,7 @@ class SLAMRunner(ABC):
         try:
             # Load the Datasets
             datasets: list = self.load_datasets()
-            # Load the Slam algorithm
-            slam = self.load_slam_algorithm()
-            self.save_config()
+
         except (KeyboardInterrupt, Exception) as e:
             self.handle_failure()
             raise
@@ -145,7 +143,9 @@ class SLAMRunner(ABC):
                                     batch_size=self.batch_size,
                                     num_workers=self.num_workers)
 
-            # Init the SLAM
+            # Load/Init the SLAM
+            slam = self.load_slam_algorithm()
+            self.save_config()
             slam.init()
 
             elapsed = 0.0
@@ -184,6 +184,9 @@ class SLAMRunner(ABC):
             check_sizes(relative_poses, [-1, 4, 4])
             if relative_ground_truth is not None:
                 check_sizes(relative_ground_truth, [relative_poses.shape[0], 4, 4])
+
+            del slam
+            del dataloader
 
             self.save_and_evaluate(sequence_name, relative_poses, relative_ground_truth, elapsed=elapsed)
 
