@@ -16,6 +16,7 @@ from slam.common.pose import Pose
 from slam.common.projection import Projector
 from slam.odometry import *
 from slam.common.utils import assert_debug, check_tensor, TensorType, remove_nan
+from slam.common.utils import ObjectLoaderEnum
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -433,13 +434,12 @@ cs.store(group="slam/odometry/local_map", name="projective", node=ProjectiveLoca
 cs.store(group="slam/odometry/local_map", name="kdtree", node=KdTreeLocalMapConfig)
 
 
-class LOCAL_MAP(Enum):
+class LOCAL_MAP(ObjectLoaderEnum, Enum):
     """Convenient Enum to load LocalMap from configuration"""
-    projective_local_map = ProjectiveLocalMap
-    kdtree_local_map = KdTreeLocalMap
 
-    @staticmethod
-    def load(config: LocalMapConfig, **kwargs):
-        map_type = config.type
-        assert_debug(map_type in LOCAL_MAP.__members__)
-        return LOCAL_MAP.__members__[map_type].value(config, **kwargs)
+    projective_local_map = (ProjectiveLocalMap, ProjectiveLocalMapConfig)
+    kdtree_local_map = (KdTreeLocalMap, KdTreeLocalMapConfig)
+
+    @classmethod
+    def type_name(cls):
+        return "type"

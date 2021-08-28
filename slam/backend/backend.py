@@ -8,11 +8,11 @@ import numpy as np
 
 # Hydra and OmegaConf
 from hydra.conf import dataclass, MISSING
-from omegaconf import DictConfig
 
 # Project Imports
 from slam.common.modules import _with_g2o
 from slam.common.utils import assert_debug, check_tensor, ObjectLoaderEnum
+
 from slam.eval.eval_odometry import compute_relative_poses
 
 
@@ -169,8 +169,7 @@ class Backend(ABC):
 
 if _with_g2o:
     import g2o
-
-    from slam.viz import _with_viz3d
+    from slam.common.modules import _with_viz3d
 
     if _with_viz3d:
         from viz3d.window import OpenGLWindow
@@ -232,7 +231,7 @@ if _with_g2o:
             self.vertices = None
             self.odometry_poses = None
             self._num_poses = 0
-            if _with_viz3d:
+            if self.with_window:
                 if self.window is not None:
                     self.window.close(True)
                     self.window = None

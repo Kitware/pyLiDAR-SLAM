@@ -1,6 +1,6 @@
 from abc import ABC
 from enum import Enum
-from typing import Dict
+from typing import Dict, Optional, Any
 
 import numpy as np
 from scipy.spatial.transform.rotation import Rotation as R, Slerp
@@ -235,7 +235,7 @@ class FILTER(Enum):
 @dataclass
 class PreprocessingConfig:
     """The configuration for `Preprocessing`"""
-    filters: Dict[str, Dict] = MISSING
+    filters: Optional[Dict[str, Any]] = None
 
 
 # -- Hydra add default configurations
