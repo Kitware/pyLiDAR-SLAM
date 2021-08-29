@@ -25,6 +25,7 @@ def draw_trajectory_files(xs: list, ys: list, output_file: str, labels: list = N
         An optional list of labels to be displayed in the trajectory
 
     """
+    plt.ioff()
     fig = plt.figure(figsize=(10., 10.), dpi=100, clear=True)
 
     axes = []
