@@ -29,7 +29,7 @@ def write_poses_to_disk(file_path: str, poses: np.ndarray):
     poses_to_df(poses).to_csv(file_path, sep=delimiter(), index=False)
 
 
-def read_poses_from_disk(file_path: str) -> np.ndarray:
+def read_poses_from_disk(file_path: str, _delimiter: str = delimiter()) -> np.ndarray:
     """
     Reads an array of poses from disk
 
@@ -39,7 +39,7 @@ def read_poses_from_disk(file_path: str) -> np.ndarray:
     """
     path = Path(file_path)
     assert_debug(path.exists() and path.is_file())
-    return df_to_poses(pd.read_csv(path, sep=delimiter(), index_col=None))
+    return df_to_poses(pd.read_csv(path, sep=_delimiter, index_col=None))
 
 
 def df_to_poses(df: pd.DataFrame) -> np.ndarray:
