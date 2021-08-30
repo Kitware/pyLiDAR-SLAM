@@ -86,7 +86,7 @@ if _with_ct_icp:
         eval_sequences: list = field(default_factory=lambda: ["09", "10"])
 
 
-    # Hydra -- stores a KITTIConfig `ct_icp` in the `dataset` group
+    # Hydra -- stores a CT_ICPDatasetConfig `ct_icp` in the `dataset` group
     cs = ConfigStore.instance()
     cs.store(group="dataset", name="ct_icp", node=CT_ICPDatasetConfig)
 
