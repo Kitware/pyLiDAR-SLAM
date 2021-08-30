@@ -58,6 +58,7 @@ class SLAMRunnerConfig:
     # Debug parameters
     viz_num_pointclouds: int = 200
     debug: bool = True
+    save_results: bool = True
 
 
 # -------------
@@ -150,7 +151,8 @@ class SLAMRunner(ABC):
 
             # Load/Init the SLAM
             slam = self.load_slam_algorithm()
-            self.save_config()
+            if self.config.save_results:
+                self.save_config()
             slam.init()
 
             elapsed = 0.0
@@ -181,8 +183,9 @@ class SLAMRunner(ABC):
                 catch_exception()
                 raise e
 
-            # Dump trajectory constraints in case of loop closure
-            slam.dump_all_constraints(str(Path(self.log_dir) / sequence_name))
+            if self.config.save_results:
+                # Dump trajectory constraints in case of loop closure
+                slam.dump_all_constraints(str(Path(self.log_dir) / sequence_name))
 
             # Evaluate the SLAM if it has a ground truth
             relative_poses = slam.get_relative_poses()
@@ -193,7 +196,8 @@ class SLAMRunner(ABC):
             del slam
             del dataloader
 
-            self.save_and_evaluate(sequence_name, relative_poses, relative_ground_truth, elapsed=elapsed)
+            if self.config.save_results:
+                self.save_and_evaluate(sequence_name, relative_poses, relative_ground_truth, elapsed=elapsed)
 
     def save_and_evaluate(self, sequence_name: str,
                           trajectory: np.ndarray,

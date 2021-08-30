@@ -14,7 +14,6 @@ if _with_ct_icp:
     from slam.viz.color_map import *
     from slam.common.modules import _with_viz3d
 
-
     if _with_viz3d:
         from viz3d.window import OpenGLWindow, field
 
@@ -39,7 +38,7 @@ if _with_ct_icp:
                     if key_type in [str, int, float, bool]:
                         cls.__annotations__[key] = key_type
                         setattr(cls, key, default_value)
-                    elif key_type in [pct.ICP_DISTANCE, pct.LEAST_SQUARES, pct.CT_ICP_DATASET, pct.MOTION_COMPENSATION]:
+                    elif key_type in [pct.ICP_DISTANCE, pct.LEAST_SQUARES, pct.CT_ICP_DATASET, pct.MOTION_COMPENSATION, pct.INITIALIZATION]:
                         # Replace pyct_icp enums by string
                         cls.__annotations__[key] = str
                         value_name = default_value.name
@@ -120,6 +119,10 @@ if _with_ct_icp:
                     field_value = getattr(self, field_name)
                     field_value = getattr(pct.MOTION_COMPENSATION, field_value)
                     setattr(options, field_name, field_value)
+                elif field_name == "initialization":
+                    field_value = getattr(self, field_name)
+                    field_value = getattr(pct.INITIALIZATION, field_value)
+                    setattr(options, field_name, field_value)
                 else:
                     field_value = getattr(self, field_name)
                     assert_debug(field_value != MISSING)
@@ -199,7 +202,7 @@ if _with_ct_icp:
                     self.viz3d_window.close(True)
                     self.viz3d_window = None
                 self.viz3d_window = OpenGLWindow(
-                    engine_config={"with_edl": True, "edl_strength": 1000.0})
+                    engine_config={"with_edl": True, "edl_strength": 10000.0})
                 self.viz3d_window.init()
 
         # ------------------------------------------------------------------------------------------------------------------
