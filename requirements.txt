@@ -4,6 +4,7 @@
 omegaconf
 pykdtree
 matplotlib
+seaborn
 tqdm
 pandas
 scipy
