@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 
 import torch
 import numpy as np
@@ -37,34 +37,43 @@ COLORMAPS = {'rainbow': opencv_rainbow(),
              'bone': cm.get_cmap('bone', 10000)}
 
 
-def gray_color_map(np_image: np.array, color_map="rainbow") -> np.array:
+def gray_color_map(np_image: np.array, color_map="rainbow",
+                   z_min: Optional[float] = None,
+                   z_max: Optional[float] = None) -> np.array:
     """
     Returns a color image from a gray image
 
     Parameters:
         np_image (np.ndarray): a gray image `(H,W)`
+        color_map (str): The name of the color map (in "rainbow", "magma", "bone")
+        z_min (float): Optionally the z_min (other wise set to the min of the scalars observed)
+        z_max (float): Optionally the z_min (other wise set to the min of the scalars observed)
 
     Returns:
         np.ndarray `(4,H,W)`
     """
     assert len(np_image.shape) == 2
-    min_value = np_image.min()
-    max_value = np_image.max()
+    min_value = z_min if z_min is not None else np_image.min()
+    max_value = z_max if z_max is not None else np_image.max()
     np_image = (np_image - min_value) / (max_value - min_value)
     output_image = COLORMAPS[color_map](np_image).astype(np.float32)
     output_image = output_image.transpose(2, 0, 1)
     return output_image
 
 
-def scalar_gray_cmap(values: np.ndarray, cmap="rainbow") -> np.ndarray:
+def scalar_gray_cmap(values: np.ndarray, cmap="rainbow",
+                     z_min: Optional[float] = None, z_max: Optional[float] = None) -> np.ndarray:
     """Returns an array of colors from an array of values
 
     Parameters:
         values (np.ndarray): an array of scalars `(N,)`
+        cmap (str): The name of the color map (in "rainbow", "magma", "bone")
+        z_min (float): Optionally the z_min (other wise set to the min of the scalars observed)
+        z_max (float): Optionally the z_min (other wise set to the min of the scalars observed)
     Returns:
         np.ndarray `(N,3)`
     """
-    colors = gray_color_map(values.reshape(-1, 1), cmap)[:3, :, 0].T
+    colors = gray_color_map(values.reshape(-1, 1), cmap, z_min=z_min, z_max=z_max)[:3, :, 0].T
     return colors
 
 
