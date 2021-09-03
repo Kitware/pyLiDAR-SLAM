@@ -2,7 +2,7 @@ from typing import Union
 
 import torch
 from torchvision.transforms.functional import to_tensor
-from torch._six import container_abcs
+import collections
 from torch.utils.data.dataloader import default_collate
 
 import numpy as np
@@ -31,7 +31,7 @@ def custom_to_tensor(data: Union[torch.Tensor, np.ndarray, dict],
         Whether to add a dimension (in first position)
         A [N1, N2, ..., NK] tensor will be transformed to [1, N1, N2, ..., NK] tensor
     """
-    if isinstance(data, container_abcs.Mapping):
+    if isinstance(data, collections.Mapping):
         return {key: custom_to_tensor(data[key],
                                       device=device,
                                       torchviz_conversion=torchviz_conversion,
@@ -68,7 +68,7 @@ def send_to_device(data: Union[dict, torch.Tensor, np.ndarray],
     if isinstance(data, torch.Tensor):
         data = data.to(device=device)
 
-    if isinstance(data, container_abcs.Mapping):
+    if isinstance(data, collections.Mapping):
         data = {key: send_to_device(data[key], device) for key in data}
 
     if isinstance(data, np.ndarray) and convert_numpy:
@@ -93,7 +93,7 @@ def collate_fun(batch) -> object:
     elem = batch[0]
     if isinstance(elem, list):
         return batch
-    elif isinstance(elem, container_abcs.Mapping):
+    elif isinstance(elem, collections.Mapping):
 
         result = dict()
         for key in elem:

@@ -1,6 +1,6 @@
 from typing import Optional
 from torch.utils.data import Dataset
-from torch._six import container_abcs
+import collections
 from torch.utils.data._utils.collate import default_collate
 import numpy as np
 
@@ -84,7 +84,7 @@ class DatasetOfSequences(Dataset):
         elem = batch[0]
         if elem is None:
             return batch
-        if isinstance(elem, container_abcs.Mapping):
+        if isinstance(elem, collections.Mapping):
             result = dict()
             for key in elem:
                 if "numpy" in key:
