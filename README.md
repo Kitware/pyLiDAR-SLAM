@@ -210,9 +210,9 @@ In [benchmark.md](docs/benchmark.md) we present the results of *pyLIDAR-SLAM* on
 
 ### System Tested
 
-| OS            | CUDA   | pytorch  | python | 
-| --- | --- | --- | --- | 
-| Ubuntu 18.04  | 10.2   | 1.7.1    | 3.8.8 |
+| OS            | CUDA   | pytorch  | python | hydra |
+| --- | --- | --- | --- | --- |
+| Ubuntu 18.04  | 10.2   | 1.7.1    | 3.8.8 | 1.0 |
 
 ### Author
 This is a work realised in the context of Pierre Dellenbach PhD thesis under supervision of [Bastien Jacquet](https://www.linkedin.com/in/bastienjacquet/?originalSubdomain=fr) ([Kitware](https://www.kitware.com/computer-vision/)), 
