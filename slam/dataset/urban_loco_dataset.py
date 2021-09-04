@@ -27,6 +27,7 @@ if _with_rosbag:
 
     import numpy as np
     import numba as nb
+    from numba import prange
     from scipy.spatial.transform.rotation import Rotation as R
     from enum import Enum
 
@@ -34,12 +35,12 @@ if _with_rosbag:
     from slam.eval.eval_odometry import compute_relative_poses
 
 
-    @nb.jit(nopython=True)
+    @nb.jit(nopython=True, parallel=True)
     def compute_ring_ids(theta_bins, unique):
         """Compute ring ids by grouping points by polar angle bins (in spherical projection)"""
         ring_ids = -1 * np.ones_like(theta_bins)
         # convert thetas_bins to ring indices
-        for idx in range(theta_bins.shape[0]):
+        for idx in prange(theta_bins.shape[0]):
             value = theta_bins[idx]
             for rid in range(32):
                 bin_value = unique[rid]
@@ -88,6 +89,8 @@ if _with_rosbag:
         return _filter_value
 
 
+
+    @nb.njit()
     def find_pc_id_with_azimuth(points: np.ndarray, azimuth_bin: int, min_num_points: int):
         """Finds the index of the first point with azimuth equal to azimuth_bin
         After at least min_num_points have been passed
@@ -242,9 +245,15 @@ if _with_rosbag:
                     num_remaining_points = 0 if self.current_frame is None else self.current_frame.shape[0]
                     bins = (np.arctan2(pc[:, 1], pc[:, 0]) / np.pi * 180).astype(np.int32)
                     _filter_min_points = np.zeros((timestamps.shape[0],), dtype=np.bool)
-                    _filter_min_points[max(40000 - num_remaining_points, 0):] = 1
+                    _filter_min_points[max(20000 - num_remaining_points, 0):] = 1
                     _filter_azimuth_candidates = (bins == self.azimuth_bin) * _filter_min_points
-                    cut_idx = np.nonzero(_filter_azimuth_candidates)[0][0]
+                    non_zero = np.nonzero(_filter_azimuth_candidates)
+                    if len(non_zero) == 0 or len(non_zero[0]) == 0:
+                        # No point has azimuth self.azimuth_bin
+                        # This only happens for edge cases
+                        cut_idx = _filter_azimuth_candidates.shape[0] - 1
+                    else:
+                        cut_idx = np.nonzero(_filter_azimuth_candidates)[0][0]
                     assert cut_idx is not None
 
                     _filter = timestamps <= timestamps[cut_idx]
@@ -260,7 +269,7 @@ if _with_rosbag:
                     self.current_timestamps = timestamps[~_filter]
                     self.current_frame = pc[~_filter]
                     if find_pc_id_with_azimuth(self.current_frame,
-                                               self.azimuth_bin, 40000) is not None:
+                                               self.azimuth_bin, 20000) is not None:
                         # If a full frame has been aggregated, the next frame is skipped
                         self.skip_next_frame = True
                 else:

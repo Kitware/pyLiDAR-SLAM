@@ -59,34 +59,40 @@ if _with_rosbag:
             topic_mapping (dict): The mapping topic name to key in the data_dict
         """
 
+        def _lazy_initialization(self):
+            if not self.initialized:
+                logging.info(f"[RosbagDataset]Loading ROSBAG {self.file_path}. May take some time")
+                self.rosbag = rosbag.Bag(self.file_path, "r")
+                logging.info(f"Done.")
+
+                topic_info = self.rosbag.get_type_and_topic_info()
+                for topic in self.topic_mapping:
+                    assert_debug(topic in topic_info.topics,
+                                 f"{topic} is not a topic of the rosbag "
+                                 f"(existing topics : {list(topic_info.topics.keys())}")
+                self._len = self.rosbag.get_message_count(self.main_topic) // self._frame_size
+                self.initialized = True
+
         def __init__(self, config: RosbagConfig, file_path: str, main_topic: str, frame_size: int,
                      topic_mapping: Optional[dict] = None):
             self.config = config
             self.rosbag = None
+            self.initialized = False
             assert_debug(Path(file_path).exists(), f"The path to {file_path} does not exist.")
-            logging.info(f"Loading ROSBAG {file_path}")
-            self.rosbag = rosbag.Bag(file_path, "r")
-            logging.info(f"Done.")
-
+            self.file_path = file_path
             self.topic_mapping = topic_mapping if topic_mapping is not None else {}
             if main_topic not in self.topic_mapping:
                 self.topic_mapping[main_topic] = "numpy_pc"
-
-            topic_info = self.rosbag.get_type_and_topic_info()
-            for topic in self.topic_mapping:
-                assert_debug(topic in topic_info.topics,
-                             f"{topic} is not a topic of the rosbag "
-                             f"(existing topics : {list(topic_info.topics.keys())}")
-
-            self.main_topic = main_topic
+            self.main_topic: str = main_topic
+            self.frame_size = frame_size
             self._frame_size: int = frame_size if self.config.accumulate_scans else 1
-            self._len = self.rosbag.get_message_count(self.main_topic) // self._frame_size
-
+            self._len = -1  #
             self._idx = 0
             self._topics = list(topic_mapping.keys())
             self.__iter = None
 
         def __iter__(self):
+            self._lazy_initialization()
             self.__iter = self.rosbag.read_messages(self._topics)
             self._idx = 0
             return self
@@ -120,6 +126,7 @@ if _with_rosbag:
                 data_dict[timestamps_key].append(timestamps)
 
         def __getitem__(self, index) -> dict:
+            self._lazy_initialization()
             assert_debug(index == self._idx, "A RosbagDataset does not support Random access")
             assert isinstance(self.config, RosbagConfig)
             if self.__iter is None:
@@ -143,6 +150,7 @@ if _with_rosbag:
             return self[self._idx]
 
         def __len__(self):
+            self._lazy_initialization()
             return self._len
 
         def __del__(self):
