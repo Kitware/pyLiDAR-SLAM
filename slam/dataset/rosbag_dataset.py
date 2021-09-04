@@ -82,13 +82,13 @@ if _with_rosbag:
             self._frame_size: int = frame_size if self.config.accumulate_scans else 1
             self._len = self.rosbag.get_message_count(self.main_topic) // self._frame_size
 
-            self.__idx = 0
+            self._idx = 0
             self._topics = list(topic_mapping.keys())
             self.__iter = None
 
         def __iter__(self):
             self.__iter = self.rosbag.read_messages(self._topics)
-            self.__idx = 0
+            self._idx = 0
             return self
 
         @staticmethod
@@ -120,7 +120,7 @@ if _with_rosbag:
                 data_dict[timestamps_key].append(timestamps)
 
         def __getitem__(self, index) -> dict:
-            assert_debug(index == self.__idx, "A RosbagDataset does not support Random access")
+            assert_debug(index == self._idx, "A RosbagDataset does not support Random access")
             assert isinstance(self.config, RosbagConfig)
             if self.__iter is None:
                 self.__iter__()
@@ -134,13 +134,13 @@ if _with_rosbag:
                 _key = self.topic_mapping[topic]
                 self._save_topic(data_dict, _key, topic, msg, t, frame_index=index)
 
-            self.__idx += 1
+            self._idx += 1
             # Aggregate data
             data_dict = self.aggregate_messages(data_dict)
             return data_dict
 
         def __next__(self):
-            return self[self.__idx]
+            return self[self._idx]
 
         def __len__(self):
             return self._len
