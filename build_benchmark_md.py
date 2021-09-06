@@ -30,9 +30,13 @@ cs.store(name="benchmark", node=BenchmarkBuilderConfig)
 
 
 def load_dataset(dataset: str) -> tuple:
-    assert_debug(dataset in ["kitti", "nhcd", "ford_campus", "nclt"])
+    _datasets = ["kitti", "nhcd", "ford_campus", "nclt", "kitti_360"]
+    assert_debug(dataset in _datasets,
+                 f"The dataset {dataset} is not supported")
     if dataset == "kitti":
         return "KITTI", [f"{i:02}" for i in range(11)]
+    if dataset == "kitti_360":
+        return "KITTI_360", ["0", "2", "3", "4", "5", "6", "7", "9", "10"]
     if dataset == "nhcd":
         return "Newer Handheld College Dataset", ["01_short_experiment", "02_long_experiment"]
     if dataset == "nclt":
