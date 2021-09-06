@@ -199,7 +199,7 @@ class KITTIOdometrySequence(Dataset):
         return self.size
 
     @staticmethod
-    def _correct_scan(scan: np.ndarray):
+    def correct_scan(scan: np.ndarray):
         """
         Corrects the calibration of KITTI's HDL-64 scan
         """
@@ -242,7 +242,7 @@ class KITTIOdometrySequence(Dataset):
             assert_debug(scan_path.exists() and scan_path.is_file(), f"The file {scan_path} does not exist")
             scan = kitti_read_scan(str(scan_path))
             # Apply Rectification on the scan
-            scan = self._correct_scan(scan)
+            scan = self.correct_scan(scan)
             if self._with_numpy_pc:
                 data_dict["numpy_pc"] = scan.copy()
             scan = torch.from_numpy(scan[:, :3]).unsqueeze(0)

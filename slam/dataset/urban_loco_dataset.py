@@ -19,13 +19,14 @@ if _with_rosbag:
 
     from slam.common.io import read_poses_from_disk, write_poses_to_disk
     from slam.common.pose import PosesInterpolator
-    from slam.common.projection import SphericalProjector, SphericalProjector, SphericalProjector
-    from slam.common.utils import assert_debug
+    from slam.common.projection import SphericalProjector
+    from slam.common.utils import assert_debug, remove_nan
     from slam.dataset import DatasetConfig
     from typing import Optional
 
     import numpy as np
     import numba as nb
+    from numba import prange
     from scipy.spatial.transform.rotation import Rotation as R
     from enum import Enum
 
@@ -33,12 +34,12 @@ if _with_rosbag:
     from slam.eval.eval_odometry import compute_relative_poses
 
 
-    @nb.jit(nopython=True)
+    @nb.jit(nopython=True, parallel=True)
     def compute_ring_ids(theta_bins, unique):
         """Compute ring ids by grouping points by polar angle bins (in spherical projection)"""
         ring_ids = -1 * np.ones_like(theta_bins)
         # convert thetas_bins to ring indices
-        for idx in range(theta_bins.shape[0]):
+        for idx in prange(theta_bins.shape[0]):
             value = theta_bins[idx]
             for rid in range(32):
                 bin_value = unique[rid]
@@ -72,6 +73,34 @@ if _with_rosbag:
             ring_ids_set.add(ring_id)
             array[idx] = packet_id
         return array
+
+
+    @nb.njit()
+    def add_packets_until(timestamps, points, bin_id: int):
+        _filter_value = None
+        for idx in range(points.shape[0]):
+            point_bin_id = int(np.arctan2(points[idx, 1], points[idx, 0]) * 180 / np.pi)
+
+            if point_bin_id == bin_id:
+                _filter_value = timestamps <= timestamps[point_bin_id]
+                break
+        return _filter_value
+
+
+
+    @nb.njit()
+    def find_pc_id_with_azimuth(points: np.ndarray, azimuth_bin: int, min_num_points: int):
+        """Finds the index of the first point with azimuth equal to azimuth_bin
+        After at least min_num_points have been passed
+        """
+        for idx in range(points.shape[0]):
+            point_bin_id = int(np.arctan2(points[idx, 1], points[idx, 0]) * 180 / np.pi)
+
+            if azimuth_bin == point_bin_id:
+                if idx > min_num_points:
+                    return idx
+
+        return None
 
 
     _california_ext_to_lidar = np.array([[0., -1., 0., -5.245e-01],
@@ -166,10 +195,10 @@ if _with_rosbag:
 
             self.synchronise_azimuth = synchronise_azimuth
             self.azimuth_bin = azimuth_bin
-            self.current_frame = []
-            self.current_timestamps = []
-            self.skip_frame = False
-            self.use_first_id = False
+
+            self.current_frame = None  # The current frame being built
+            self.current_timestamps = None
+            self.skip_next_frame = False
 
         @staticmethod
         def pointcloud_topic(acquisition: ACQUISITION):
@@ -219,55 +248,50 @@ if _with_rosbag:
             if "PointCloud2" in msg._type:
                 data, timestamps = self.decode_pointcloud(msg, timestamp)
                 pc, timestamps, _packet_ids = self.estimate_timestamps(frame_index, data)
+                _, _filter_nan = remove_nan(pc)
+                pc = pc[_filter_nan]
+                timestamps = timestamps[_filter_nan]
+                _packet_ids = _packet_ids[_filter_nan]
+                self.skip_next_frame = False
+                indices = np.argsort(timestamps)
+                timestamps = timestamps[indices]
+                pc = pc[indices]
+                _packet_ids = _packet_ids[indices]
 
                 if self.synchronise_azimuth:
-                    sorted_indices = np.argsort(timestamps)
-                    pc = pc[sorted_indices]
-                    timestamps = timestamps[sorted_indices]
-                    _packet_ids = _packet_ids[sorted_indices]
-
-                    azimuth_bins = (np.arctan2(pc[:, 1], pc[:, 0]) * 180 / np.pi).astype(np.int32)
-                    indices = np.nonzero(azimuth_bins == self.azimuth_bin)[0]
-                    first_id = indices[0]
-                    last_id = indices[-1]
-
-                    first_packet_id = _packet_ids[first_id]
-                    last_packet_id = _packet_ids[last_id]
-
-                    self.use_first_id = len(self.current_frame) > 0 and self.current_frame[0].shape[0] > 30000
-
-                    set_current_frame: bool = True
-                    if last_packet_id <= 1 and len(self.current_frame) == 0:
-                        # No previous saved points : return the full pointcloud
-                        current_frame_filter = np.ones((_packet_ids.shape[0],), dtype=np.bool)
-                        set_current_frame = False
+                    num_remaining_points = 0 if self.current_frame is None else self.current_frame.shape[0]
+                    bins = (np.arctan2(pc[:, 1], pc[:, 0]) / np.pi * 180).astype(np.int32)
+                    _filter_min_points = np.zeros((timestamps.shape[0],), dtype=np.bool)
+                    _filter_min_points[max(20000 - num_remaining_points, 0):] = 1
+                    _filter_azimuth_candidates = (bins == self.azimuth_bin) * _filter_min_points
+                    non_zero = np.nonzero(_filter_azimuth_candidates)
+                    if len(non_zero) == 0 or len(non_zero[0]) == 0:
+                        # No point has azimuth self.azimuth_bin
+                        # This only happens for edge cases
+                        cut_idx = _filter_azimuth_candidates.shape[0] - 1
                     else:
-                        current_frame_filter = _packet_ids <= (
-                            first_packet_id if self.use_first_id else last_packet_id)
+                        cut_idx = np.nonzero(_filter_azimuth_candidates)[0][0]
+                    assert cut_idx is not None
 
-                    self.current_frame.append(pc[current_frame_filter])
-                    self.current_timestamps.append(timestamps[current_frame_filter])
+                    _filter = timestamps <= timestamps[cut_idx]
 
-                    current_frame = np.concatenate(self.current_frame, axis=0)
-                    current_timestamps = np.concatenate(self.current_timestamps, axis=0)
+                    current_frame = pc[_filter]
+                    current_timestamps = timestamps[_filter]
+                    if self.current_frame is not None:
+                        current_frame = np.concatenate([self.current_frame,
+                                                        current_frame], axis=0)
+                        current_timestamps = np.concatenate([self.current_timestamps,
+                                                             current_timestamps])
 
-                    self.current_timestamps.clear()
-                    self.current_frame.clear()
-                    if set_current_frame:
-                        self.current_frame.append(pc[~current_frame_filter])
-                        self.current_timestamps.append(timestamps[~current_frame_filter])
-                        if (self.use_first_id and abs(last_packet_id - first_packet_id) > 50) or \
-                                (last_packet_id <= 1 and self.current_frame[0].shape[0] > 50000):
-                            self.skip_frame = True  # The next frame returned in the remaining points
-
-                    frame_size = current_frame.shape[0]
-                    if frame_size < 3000:
-                        print(f"[ERROR] {frame_size} is small")
-
+                    self.current_timestamps = timestamps[~_filter]
+                    self.current_frame = pc[~_filter]
+                    if find_pc_id_with_azimuth(self.current_frame,
+                                               self.azimuth_bin, 20000) is not None:
+                        # If a full frame has been aggregated, the next frame is skipped
+                        self.skip_next_frame = True
                 else:
                     current_frame = pc
                     current_timestamps = timestamps
-                    self.skip_frame = False
 
                 data_dict[key].append(current_frame)
                 timestamps_key = f"{key}_timestamps"
@@ -293,13 +317,14 @@ if _with_rosbag:
             return data_dict
 
         def __getitem__(self, index):
-            if self.skip_frame:
+            if self.skip_next_frame:
                 data_dict = dict()
-                data_dict["numpy_pc"] = np.concatenate(self.current_frame, axis=0)
-                data_dict["numpy_pc_timestamps"] = np.concatenate(self.current_timestamps, axis=0)
-                self.current_timestamps.clear()
-                self.current_frame.clear()
-                self.skip_frame = False
+                data_dict["numpy_pc"] = self.current_frame
+                data_dict["numpy_pc_timestamps"] = self.current_timestamps
+                self.current_timestamps = None
+                self.current_frame = None
+                self.skip_next_frame = False
+                self._idx += 1
                 return data_dict
 
             data_dict = super().__getitem__(index)

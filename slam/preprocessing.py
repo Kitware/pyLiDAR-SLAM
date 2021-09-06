@@ -16,8 +16,10 @@ from slam.common.pointcloud import voxel_hashing, voxelise, voxel_normal_distrib
 # Hydra and OmegaConf
 from hydra.conf import MISSING, dataclass
 
-
 # ----------------------------------------------------------------------------------------------------------------------
+from slam.initialization import Initialization
+
+
 @dataclass
 class FilterConfig:
     """A Configuration for a filter"""
@@ -126,46 +128,59 @@ class ToTensor(Filter):
 
 # ----------------------------------------------------------------------------------------------------------------------
 @dataclass
-class CVDistortionConfig(FilterConfig):
+class DistortionConfig(FilterConfig):
     """A Filter Config a distortion of a frame"""
-    filter_name: str = "cv_distortion"
+    filter_name: str = "distortion"
     pointcloud_key: str = "numpy_pc"
     timestamps_key: str = "numpy_pc_timestamps"
-    pose_key: str = "relative_pose"
+    pose_key: str = Initialization.initial_pose_key()
     output_key: str = "input_data"
+
+    force: bool = False  # Whether to fail if timestamps do not exist
+    activate: bool = True  # Whether to deactivate the distortion
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class CVDistortion(Filter):
+class Distortion(Filter):
     """Distort a frame using the estimated initial motion"""
 
-    def __init__(self, config: CVDistortionConfig, **kwargs):
+    def __init__(self, config: DistortionConfig, **kwargs):
         super().__init__(config)
 
     def filter(self, data_dict: dict):
-        assert isinstance(self.config, CVDistortionConfig)
+        assert isinstance(self.config, DistortionConfig)
         pc = data_dict[self.config.pointcloud_key]
         assert_debug(isinstance(pc, np.ndarray), "Cannot Distort a non numpy frame")
         check_tensor(pc, [-1, 3])
         rpose = data_dict[self.config.pose_key]
-        check_tensor(pc, [4, 4])
+        check_tensor(rpose, [4, 4])
+
+        if self.config.timestamps_key not in data_dict and self.config.force:
+            assert_debug(False, f"Could not find the timestamps data (key: {self.config.timestamps_key}) "
+                                f"in the dict with keys: {data_dict.keys()}")
+
+        no_distortion = not self.config.activate or (self.config.timestamps_key not in data_dict)
+        if no_distortion:
+            data_dict[self.config.output_key] = pc
+            return
+
         timestamps = data_dict[self.config.timestamps_key]
         timestamps = timestamps.reshape(-1)
         assert_debug(isinstance(timestamps, np.ndarray))
         check_tensor(timestamps, [pc.shape[0]])
 
         rot_times = R.from_matrix(np.array([np.eye(3, dtype=np.float64), rpose[:3, :3].astype(np.float64)]))
-        key_times = [0.0, 1.0]
+        key_times = np.array([0.0, 1.0])
 
-        slerp = Slerp(rot_times, key_times)
+        slerp = Slerp(key_times, rot_times)
 
-        alpha_timestamps = (timestamps - np.min(timestamps)) - (np.max(timestamps) - np.min(timestamps))
+        alpha_timestamps = (timestamps - np.min(timestamps)) / (np.max(timestamps) - np.min(timestamps))
         alpha_timestamps.reshape(-1)
-        interpolated_rots: R = slerp(alpha_timestamps)
+        interpolated_rots: R = slerp(alpha_timestamps).as_matrix()
 
         interpolated_tr = alpha_timestamps.reshape(-1, 1) * rpose[:3, 3].reshape(1, 3)
 
-        distorted_frame = np.einsum("nij,nj->ni", pc, interpolated_rots.as_matrix()) + interpolated_tr
+        distorted_frame = np.einsum("nij,nj->ni", interpolated_rots, pc) + interpolated_tr
         data_dict[self.config.output_key] = distorted_frame
 
 
@@ -214,7 +229,7 @@ class FILTER(Enum):
     # random_sampling =
     # ground_point_sampling =
     # kdtree_neighborhood =
-    cv_distortion = (CVDistortion, CVDistortionConfig)
+    distortion = (Distortion, DistortionConfig)
     voxelization = (Voxelization, VoxelizationConfig)
     grid_sample = (GridSample, GridSampleConfig)
     to_tensor = (ToTensor, ToTensorConfig)
