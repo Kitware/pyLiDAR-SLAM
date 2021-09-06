@@ -149,20 +149,22 @@ class Distortion(Filter):
 
     def filter(self, data_dict: dict):
         assert isinstance(self.config, DistortionConfig)
+
         pc = data_dict[self.config.pointcloud_key]
         assert_debug(isinstance(pc, np.ndarray), "Cannot Distort a non numpy frame")
+        no_distortion = not self.config.activate or (self.config.timestamps_key not in data_dict)
+        if no_distortion:
+            data_dict[self.config.output_key] = pc
+            return
+
         check_sizes(pc, [-1, 3])
         rpose = data_dict[self.config.pose_key]
-        check_sizes(rpose, [4, 4])
 
         if self.config.timestamps_key not in data_dict and self.config.force:
             assert_debug(False, f"Could not find the timestamps data (key: {self.config.timestamps_key}) "
                                 f"in the dict with keys: {data_dict.keys()}")
 
-        no_distortion = not self.config.activate or (self.config.timestamps_key not in data_dict)
-        if no_distortion:
-            data_dict[self.config.output_key] = pc
-            return
+        check_sizes(rpose, [4, 4])
 
         timestamps = data_dict[self.config.timestamps_key]
         timestamps = timestamps.reshape(-1)
