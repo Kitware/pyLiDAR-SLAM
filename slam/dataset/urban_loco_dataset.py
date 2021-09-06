@@ -5,7 +5,6 @@ if _with_rosbag:
 
     """
     UrbanLoco Dataset (cf https://advdataset2019.wixsite.com/urbanloco/data-collection-platforma)
-
     The dataset consists of a set of 11 rosbags containing multiple data (including GPS ground truth)
 
     TODO:
@@ -62,7 +61,6 @@ if _with_rosbag:
             ring_id = int(ring_ids[idx])
             if ring_id < 0:
                 continue
-
             if ring_id in ring_ids_set:
                 # Finished a column
                 col_id += 1
@@ -123,6 +121,58 @@ if _with_rosbag:
     _hk_span_to_lidar = _hk_body_to_lidar.dot(np.linalg.inv(_hk_body_to_span))
 
 
+    def llu_to_ecef(llu: np.ndarray):
+        """Converts a LLU GPS position to ECEF frame"""
+        ecef = np.zeros((3,), dtype=np.float64)
+        a = 6378137.0
+        b = 6356752.314
+        lon = llu[0] * 3.1415926 / 180.0
+        lat = llu[1] * 3.1415926 / 180.0
+        alt = llu[2]
+        n = a * a / np.sqrt(a * a * np.cos(lat) * np.cos(lat) + b * b * np.sin(lat) * np.sin(lat))
+        Rx = (n + alt) * np.cos(lat) * np.cos(lon)
+        Ry = (n + alt) * np.cos(lat) * np.sin(lon)
+        Rz = (b * b / (a * a) * n + alt) * np.sin(lat)
+        ecef[0] = Rx
+        ecef[1] = Ry
+        ecef[2] = Rz
+        return ecef
+
+
+    def ecef_to_enu(origin_llu, ecef):
+        """Converts a ECEF GPS position to a LLU frame"""
+        pi = 3.1415926
+        DEG2RAD = pi / 180.0
+
+        # Eigen::MatrixXd enu; // the enu for output
+        enu = np.zeros((3,), dtype=np.float64)  # enu.resize(3, 1); // resize to 3X1
+        # oxyz.resize(3, 1); // resize to 3X1
+        # double x, y, z; // save the x y z in ecef
+        x = ecef[0]
+        y = ecef[1]
+        z = ecef[2]
+
+        # double ox, oy, oz; // save original reference position in ecef
+        oxyz = llu_to_ecef(origin_llu)
+        ox = oxyz[0]
+        oy = oxyz[1]
+        oz = oxyz[2]
+
+        dx = x - ox
+        dy = y - oy
+        dz = z - oz
+
+        # lonDeg, latDeg
+        lonDeg = origin_llu[0]
+        latDeg = origin_llu[1]
+        lon = lonDeg * DEG2RAD
+        lat = latDeg * DEG2RAD
+        enu[0] = -np.sin(lon) * dx + np.cos(lon) * dy
+        enu[1] = -np.sin(lat) * np.cos(lon) * dx - np.sin(lat) * np.sin(lon) * dy + np.cos(lat) * dz
+        enu[2] = np.cos(lat) * np.cos(lon) * dx + np.cos(lat) * np.sin(lon) * dy + np.sin(lat) * dz
+        return enu
+
+
     class UrbanLocoDataset(RosbagDataset):
         """Sequence of the UrbanLoco Dataset wrapping a Rosbag
 
@@ -132,16 +182,6 @@ if _with_rosbag:
         class ACQUISITION(Enum):
             HONG_KONG = 0,
             CALIFORNIA = 1
-
-        __span_to_lidar_california = np.array([[0., -1., 0., -5.245e-01],
-                                               [-1., 0., 0., 1.06045],
-                                               [0., 0., -1., 7.98576e-01],
-                                               [0, 0, 0, 1]], dtype=np.float64)
-
-        __span_to_lidar_hk = np.array([[2.67949e-08, -1, 0, 0],
-                                       [1, 2.67949e-08, 0, 0],
-                                       [0, 0, 1, -0.36],
-                                       [0., 0., 0., 1]], dtype=np.float64)
 
         def __init__(self, config: RosbagConfig, acquisition: ACQUISITION,
                      absolute_gt_poses: Optional[np.ndarray] = None, synchronise_azimuth: bool = True,
@@ -177,29 +217,6 @@ if _with_rosbag:
                     (UrbanLocoDataset.pointcloud_topic(acquisition)): "numpy_pc",
                     "/novatel_data/inspvax": "gps_pose",
                     "/navsat/odom": "odom"}
-
-        def span_to_lidar(self):
-            if self.acquisition == self.ACQUISITION.HONG_KONG:
-                return self.__span_to_lidar_hk
-            else:
-                return self.__span_to_lidar_california
-
-        def llu_to_ecef(self, llu: np.ndarray):
-            ecef = np.zeros((3,), dtype=np.float64)
-            a = 6378137.0
-            b = 6356752.314
-
-            lon = llu[0] * 3.1415926 / 180.0
-            lat = llu[1] * 3.1415926 / 180.0
-            alt = llu[2]
-            n = a * a / np.sqrt(a * a * np.cos(lat) * np.cos(lat) + b * b * np.sin(lat) * np.sin(lat))
-            Rx = (n + alt) * np.cos(lat) * np.cos(lon)
-            Ry = (n + alt) * np.cos(lat) * np.sin(lon)
-            Rz = (b * b / (a * a) * n + alt) * np.sin(lat)
-            ecef[0] = Rx
-            ecef[1] = Ry
-            ecef[2] = Rz
-            return ecef
 
         def estimate_timestamps(self, frame_index: int, pc: np.ndarray):
             if self.acquisition == self.ACQUISITION.CALIFORNIA:
@@ -283,9 +300,9 @@ if _with_rosbag:
                 data_dict[timestamps_key].append(current_timestamps)
 
             if "INSPVAX" in msg._type:
-                roll = msg.roll / 180 * np.pi
-                pitch = msg.pitch / 180 * np.pi
-                yaw = msg.azimuth / 180 * np.pi
+                roll = msg.roll
+                pitch = msg.pitch
+                yaw = msg.azimuth
                 rotation = R.from_euler("ZYX", np.array([yaw, pitch, roll], dtype=np.float64)).as_matrix()
                 pose = np.eye(4, dtype=np.float64)
                 pose[:3, :3] = rotation
@@ -293,12 +310,10 @@ if _with_rosbag:
                 latitude = msg.latitude
                 longitude = msg.longitude
                 altitude = msg.altitude
-                ecef = self.llu_to_ecef(np.array([latitude, longitude, altitude]))
-                pose[:3, 3] = ecef
+                llu = np.array([latitude, longitude, altitude])
+                ypr = np.array([yaw, pitch, roll])
 
-                span_to_lidar = self.span_to_lidar()
-                pose = pose.dot(span_to_lidar)
-                data_dict[key].append((timestamp.secs * 10e9 + timestamp.nsecs, pose))
+                data_dict[key].append((timestamp.secs * 10e9 + timestamp.nsecs, (llu, ypr)))
             return data_dict
 
         def __getitem__(self, index):
@@ -313,7 +328,6 @@ if _with_rosbag:
                 return data_dict
 
             data_dict = super().__getitem__(index)
-
             if self.ground_truth_poses is not None:
                 pose_gt = self.ground_truth_poses[index]
 
@@ -409,12 +423,44 @@ if _with_rosbag:
                 odom_poses = []
 
                 timestamp_0 = None
+                init_enu = None
+                init_llu = None
                 for b_idx, data_dict in tqdm(enumerate(dataset), ncols=100, total=len(dataset), ascii=True):
                     if "odom" in data_dict:
-                        poses_data = data_dict["odom"]
-                        for timestamp, pose in poses_data:
+                        poses_data = data_dict["gps_pose"]
+                        for timestamp, pose_items in poses_data:
+                            llu, ypr = pose_items
                             timestamps_odom_poses.append(timestamp)
-                            odom_poses.append(pose)
+
+                            longitude = llu[0] * np.pi / 180
+                            latitude = llu[1] * np.pi / 180
+                            altitude = llu[2] * np.pi / 180
+                            yaw = ypr[0] * np.pi / 180
+                            pitch = ypr[1] * np.pi / 180
+                            roll = ypr[2] * np.pi / 180
+                            R_enu = R.from_euler("zyx", np.array([-yaw, pitch, roll])).as_matrix()
+
+                            if init_llu is None:
+                                init_llu = llu
+
+                            ecef = llu_to_ecef(np.array([longitude, latitude, altitude]))
+                            enu = ecef_to_enu(init_llu, ecef)
+
+                            if init_enu is None:
+                                init_enu = enu
+
+                            enu_to_enu0 = np.eye(4, dtype=np.float64)
+                            enu_to_enu0[:3, 3] = (enu - init_enu).reshape(3)
+                            enu_to_enu0[:3, :3] = R_enu
+
+                            # Convert ENU to  NWU North / West / Up
+                            enu_to_nwu = np.array([[0.0, 1.0, 0.0, 0.0],
+                                                   [-1.0, 0.0, 0.0, 0.0],
+                                                   [0.0, 0.0, 1.0, 0.0],
+                                                   [0.0, 0.0, 0.0, 1.0]])
+                            nwu_pose = enu_to_nwu.dot(enu_to_enu0).dot(np.linalg.inv(enu_to_nwu))
+
+                            odom_poses.append(nwu_pose)
 
                     if "numpy_pc_timestamps" in data_dict:
                         timestamps = data_dict["numpy_pc_timestamps"]
