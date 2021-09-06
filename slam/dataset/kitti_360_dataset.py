@@ -16,7 +16,7 @@ from slam.common.geometry import estimate_timestamps
 from slam.common.projection import SphericalProjector
 from slam.common.utils import assert_debug
 from slam.dataset.configuration import DatasetLoader, DatasetConfig
-from slam.dataset.kitti_dataset import kitti_read_scan
+from slam.dataset.kitti_dataset import kitti_read_scan, KITTIOdometrySequence
 from slam.eval.eval_odometry import compute_relative_poses
 
 
@@ -144,7 +144,7 @@ class KITTI360Sequence(Dataset):
         data_dict = {}
 
         xyz_r = kitti_read_scan(str(self.lidar_path / f"{idx:010}.bin"))
-        data_dict["numpy_pc"] = xyz_r[:, :3]
+        data_dict["numpy_pc"] = KITTIOdometrySequence.correct_scan(xyz_r[:, :3])
         data_dict["numpy_reflectance"] = xyz_r[:, 3:]
         data_dict["numpy_pc_timestamps"] = estimate_timestamps(xyz_r[:, :3], phi_0=np.pi, clockwise=True)
         if self.gt_poses is not None:
