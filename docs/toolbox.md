@@ -26,14 +26,14 @@ For each component, multiple algorithms are implemented, (more will be added in 
 > - **EI** (for Elevation Images): the motion is predicted using a 2D image feature based registration.
 > - **NI** (for No Initialization)
 
-> To select the initialization module, pass in argument `slam/odometry/initialization=<init_name>` where `init_name` is one of `CV,EI,PoseNet,NI`.
+> To select the initialization module, pass in argument `slam/initialization=<init_name>` where `init_name` is one of `CV,EI,PoseNet,NI`.
 
-> All initialization models can be found in [initialization.py](../slam/odometry/initialization.py).
+> All initialization models can be found in [initialization.py](../slam/initialization.py).
 #### Constant Velocity
 > This model is typically the default model for a LiDAR mounted on a car (which has enough inertia for this model to hold).
 > For other acquisition methods (hand-held or mounted on a segway or a drone which lead to abrupt rotations, this might not be a good enough model)
 
-- **Command arguments**: `slam/odometry/initialization=CV`
+- **Command arguments**: `slam/initialization=CV`
 
 #### Elevation Images
 > The relative motion of a sensor is often strictly planar. Our **Elevation Images** based initializes the motion by estimating this 2D motion using Image Registration.
@@ -48,9 +48,9 @@ For each component, multiple algorithms are implemented, (more will be added in 
 
 > **Note:** This method requires the OpenCV package `cv2` to be installed (e.g. via `pip install opencv-python`).
 >
-- **Command arguments**: `slam/odometry/initialization=EI` (to visualize the 2D alignments with opencv :`slam.odometry.initialization.debug=true`)
+- **Command arguments**: `slam/initialization=EI` (to visualize the 2D alignments with opencv :`slam.odometry.initialization.debug=true`)
 
-> See [`EIConfig`](../slam/odometry/initialization.py) and [`ElevationImageRegistration`](../slam/common/registration.py) for more details on the configuration options.
+> See [`EIConfig`](../slam/initialization.py) and [`ElevationImageRegistration`](../slam/common/registration.py) for more details on the configuration options.
 
 #### PoseNet
 
@@ -80,7 +80,7 @@ export KITTI_ODOM_ROOT=<path-to-kitti-odometry-root-directory>     # The path to
 export TRAIN_DIR=<absolute-path-to-the-desired-train-dir>          # Path to the output models 
 
 # Launches the Training of PoseNet
-python run.py +device=cuda:0 +num_workers=4 dataset=kitti slam/odometry/initialization=PoseNet
+python run.py +device=cuda:0 +num_workers=4 dataset=kitti slam/initialization=PoseNet
 ```
 
 > See our paper [What's In My LiDAR Odometry Toolbox](https://arxiv.org/abs/2103.09708) for an in depth discussion of the relevance/interest of PoseNet. To summarize: beware of its lack of generalization capacities.
@@ -95,7 +95,7 @@ python run.py +device=cuda:0 +num_workers=4 dataset=kitti slam/odometry/initiali
 > - **none** by default
 
 
-> **Command argument**: `slam/preprocessing=<module name>`. See [preprocessing.py](../slam/preprocessing/preprocessing.py) for more details.
+> **Command argument**: `slam/preprocessing=<module name>`. See [preprocessing.py](../slam/preprocessing.py) for more details.
 
 # Odometry 
 

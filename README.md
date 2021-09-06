@@ -37,8 +37,10 @@ The goal for the future is to gradually add functionalities to pyLIDAR-SLAM (Loo
     ├─ models              # PoseNet model code 
     ├─ odometry            # Odometry modules 
     ├─ training            # Modules for training PoseNet models 
-    ├─ backend             # Work in Progress
-    ├─ loop_closure        # Work in Progress
+    ├─ initialization.py   # Modules for Initial motion estimate 
+    ├─ preprocessing.py    # Modules for Preprocessing the point cloud 
+    ├─ backend.py          # Work in Progress
+    ├─ loop_closure.py     # Work in Progress
     └─ viz                 # Tools for visualization 
 
 ├─ tests
@@ -74,9 +76,9 @@ The configuration hierarchy in this project follows the hierarchy of folder `con
 
 >- **Group** [`dataset`](slam/dataset/dataset.py):
 >   - configurations: [`kitti`](slam/dataset/kitti_dataset.py), [`nclt`](slam/dataset/nclt_dataset.py), [`ford_campus`](slam/dataset/ford_campus.py)
->- **Group** [`odometry/initialization`](slam/odometry/initialization.py) (Initialization module for the Frame To Model):
->   - configurations: [`EI`](slam/odometry/initialization.py), [`CV`](slam/odometry/initialization.py), [`PoseNet`](slam/odometry/initialization.py)
->- **Group** [`odometry/local_map`](slam/odometry/local_map.py) (The local map Implementation):
+>- **Group** [`slam/initialization`](slam/initialization.py) (Initialization module for the Frame To Model):
+>   - configurations: [`EI`](slam/initialization.py), [`CV`](slam/initialization.py), [`PoseNet`](slam/initialization.py)
+>- **Group** [`slam/odometry/local_map`](slam/odometry/local_map.py) (The local map Implementation):
 >   - configurations [`projective`](slam/odometry/local_map.py), [`kdtree`](slam/odometry/local_map.py), 
 
 ```bash
@@ -90,13 +92,19 @@ The configuration hierarchy in this project follows the hierarchy of folder `con
         ├─ odometry         
             ├─ alignment                # Alignment Group (will be expended in the future)
                 └─ point_to_plane_GN.yaml   # Point-to-Plane alignment for the Frame-to-Model
-            ├─ initialization           # Initialization Group
-                ├─ CV.yaml                  # Configuration for the constant velocity model
-                ├─ PoseNet.yaml             # Configuration for using PoseNet as initialization
-                └─ EI.yaml                  # Elevation Image 2D registration configuration
             └─ local_map                # The Local Map Group
                 ├─ projective               # The projective Frame-to-Model proposed
-                └─ kdtree                   # The kdtree based Frame-to-Model alignemnt 
+                └─ kdtree                   # The kdtree based Frame-to-Model alignmeeent 
+        ├─ preprocessing            # Preprocessing Group
+            ├─ grid_sample            
+            ├─ voxelization            
+               ...
+
+        ├─ initialization           # Initialization Group
+            ├─ CV.yaml                  # Configuration for the constant velocity model
+            ├─ PoseNet.yaml             # Configuration for using PoseNet as initialization
+            └─ EI.yaml                  # Elevation Image 2D registration configuration
+            
         ├─ loop_closure                 # Loop Closure Group
         └─ backend                      # Backend Group
 
@@ -157,7 +165,7 @@ export KITTI_ODOM_ROOT=<path-to-kitti-odometry-root-directory>     # The path to
 
 # Run the script
 python run.py dataset=kitti num_workers=4 device=cuda:0 slam/odometry/local_map=projective \
-       slam/odometry/initialization=CV slam.odometry.local_map.num_neighbors_normals=15
+       slam/initialization=CV slam.odometry.local_map.num_neighbors_normals=15
 ```
 
 The output files (configuration files, logs, and optionally metrics on the trajectory) will be saved by default at location : 

@@ -8,10 +8,9 @@ from slam.common.utils import check_sizes, remove_nan, modify_nan_pmap
 from slam.common.modules import _with_viz3d
 from slam.dataset import DatasetLoader
 from slam.odometry.alignment import RigidAlignmentConfig, RIGID_ALIGNMENT, RigidAlignment
-from slam.odometry.initialization import InitializationConfig, INITIALIZATION, Initialization
+from slam.initialization import InitializationConfig, Initialization
 from slam.odometry.odometry import *
 from slam.odometry.local_map import LOCAL_MAP, LocalMapConfig, LocalMap
-from slam.preprocessing.preprocessing import PreprocessingConfig, Preprocessing
 from slam.viz.color_map import *
 
 if _with_viz3d:
@@ -72,8 +71,6 @@ class ICPFrameToModel(OdometryAlgorithm):
         # --------------------------------
         # Loads Components from the Config
 
-        self._motion_model: Initialization = INITIALIZATION.load(self.config.initialization,
-                                                                 pose=self.pose, device=device)
         self.local_map: LocalMap = LOCAL_MAP.load(self.config.local_map,
                                                   pose=self.pose, projector=projector)
 
@@ -116,7 +113,6 @@ class ICPFrameToModel(OdometryAlgorithm):
         self.gt_poses = None
 
         self.local_map.init()
-        self._motion_model.init()
         self._iter = 0
         self._delta_since_map_update = torch.eye(4, dtype=torch.float32, device=self.device).reshape(1, 4, 4)
 
@@ -127,6 +123,15 @@ class ICPFrameToModel(OdometryAlgorithm):
             self.viz3d_window = OpenGLWindow(
                 engine_config={"with_edl": self.config.viz_with_edl, "edl_strength": 1000.0})
             self.viz3d_window.init()
+
+    def _initial_pose(self, data_dict: dict):
+        """Returns an initial pose from the dict"""
+        if Initialization.initial_pose_key() in data_dict:
+            new_rpose = data_dict[Initialization.initial_pose_key()]
+            new_rpose = new_rpose if new_rpose is not None else np.eye(4)
+            return torch.from_numpy(new_rpose).to(dtype=torch.float32, device=self.device).reshape(1, 4, 4)
+        else:
+            return torch.eye(4, dtype=torch.float32, device=self.device).reshape(1, 4, 4)
 
     # ------------------------------------------------------------------------------------------------------------------
     def do_process_next_frame(self, data_dict: dict):
@@ -156,7 +161,7 @@ class ICPFrameToModel(OdometryAlgorithm):
             return
 
         # Extract initial estimate
-        initial_estimate = self._motion_model.next_initial_pose(data_dict)
+        initial_estimate = self._initial_pose(data_dict)
 
         sample_points = self.sample_points()
 
@@ -166,7 +171,6 @@ class ICPFrameToModel(OdometryAlgorithm):
                                                                       data_dict=data_dict)
 
         # Update initial estimate
-        self.update_initialization(new_rpose, data_dict)
         self.__update_map(new_rpose, data_dict)
 
         # Update Previous pose
@@ -271,10 +275,6 @@ class ICPFrameToModel(OdometryAlgorithm):
         if len(self.relative_poses) == 0:
             return None
         return np.concatenate(self.relative_poses, axis=0)
-
-    def update_initialization(self, new_rpose, data_dict: dict):
-        """Send the frame to the initialization after registration for its state update"""
-        self._motion_model.register_motion(new_rpose, data_dict)
 
     # ------------------------------------------------------------------------------------------------------------------
     # `Private` methods

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Optional, Any
+import numpy as np
 
 # Hydra and omegaconf
 from hydra.core.config_store import ConfigStore
@@ -30,25 +31,37 @@ class InitializationConfig:
 
 # ----------------------------------------------------------------------------------------------------------------------
 class Initialization(ABC):
-    """The initialization model which gives a first estimate for the next frame"""
+    """The initialization module provides for each frame a prior estimate of the relative motion
 
-    def __init__(self, config: InitializationConfig):
+    Each child class adds an [4, 4] numpy ndarray of the relative pose prediction
+    to the data_dict with key "Initialization.initial_pose_key()"
+    """
+
+    def __init__(self, config: InitializationConfig, **kwargs):
         super().__init__()
         self.config = config
+
+    @staticmethod
+    def initial_pose_key():
+        """Returns the key where the initial pose estimate is saved"""
+        return "init_rpose"
 
     @abstractmethod
     def init(self):
         """Initializes the Algorithm ()"""
         raise NotImplementedError("")
 
-    @abstractmethod
-    def next_initial_pose(self, data_dict: Optional[dict] = None):
-        """Initializes the Algorithm ()"""
-        raise NotImplementedError("")
+    def next_frame(self, data_dict: dict, **kwargs):
+        data_dict[self.initial_pose_key()] = self.next_initial_pose(data_dict=data_dict, **kwargs)
 
     @abstractmethod
-    def register_motion(self, new_pose: torch.Tensor, data_dict: dict):
-        """Registers the new motion into the algorithm"""
+    def next_initial_pose(self, data_dict: Optional[dict] = None, **kwargs):
+        """Initializes the Algorithm ()"""
+        return None
+
+    @abstractmethod
+    def save_real_motion(self, new_pose: np.ndarray, data_dict: dict):
+        """Saves the real new motion into the algorithm"""
         raise NotImplementedError("")
 
 
@@ -63,20 +76,18 @@ class NIConfig(InitializationConfig):
 class NoInitialization(Initialization):
     """Initialize motion with identity"""
 
-    def __init__(self, config: InitializationConfig, pose: Pose, device: torch.device = torch.device("cpu"), **kwargs):
+    def __init__(self, config: InitializationConfig, **kwargs):
         super().__init__(config)
-        self.device = device
-        self.next_estimate = None
 
     def init(self):
         """Sets the predicted motion as the identity systematically"""
-        torch.eye(4, device=self.device).reshape(1, 4, 4)
+        pass
 
-    def next_initial_pose(self, data_dict: Optional[dict] = None):
+    def next_initial_pose(self, data_dict: Optional[dict] = None, **kwargs):
         """Returns the identity"""
-        return self.next_estimate
+        return None
 
-    def register_motion(self, relative_pose: torch.Tensor, data_dict: dict):
+    def save_real_motion(self, relative_pose: torch.Tensor, data_dict: dict):
         """No actions required"""
         pass
 
@@ -99,12 +110,12 @@ class ConstantVelocityInitialization(Initialization):
         self.initial_estimate = None
 
     def init(self):
-        self.initial_estimate = torch.eye(4, dtype=torch.float32, device=self.device).reshape(1, 4, 4)
+        self.initial_estimate = np.eye(4)
 
-    def next_initial_pose(self, data_dict: Optional[dict] = None):
+    def next_initial_pose(self, **kwargs):
         return self.initial_estimate
 
-    def register_motion(self, relative_pose: torch.Tensor, data_dict: dict):
+    def save_real_motion(self, relative_pose: np.ndarray, data_dict: dict):
         self.initial_estimate = relative_pose
 
 
@@ -123,7 +134,7 @@ if _with_cv2:
     class ElevationImageInitialization(Initialization):
         """Initialize motion by resolving a planar motion registration"""
 
-        def __init__(self, ei_config: EIConfig, pose: Pose, device: torch.device = torch.device("cpu")):
+        def __init__(self, ei_config: EIConfig, pose: Pose, device: torch.device = torch.device("cpu"), **kwargs):
             super().__init__(ei_config)
             self.pose = pose
             self.device = device
@@ -148,13 +159,13 @@ if _with_cv2:
                 cv2.destroyWindow("matches")
 
         def init(self):
-            self.next_estimate = torch.eye(4, dtype=torch.float32, device=self.device).reshape(1, 4, 4)
+            self.next_estimate = np.eye(4)
             # Local variables
             self._previous_kpts = None
             self._previous_desc = None
             self._previous_image = None
 
-        def next_initial_pose(self, data_dict: Optional[dict] = None):
+        def next_initial_pose(self, data_dict: Optional[dict] = None, **kwargs):
             assert_debug(data_dict is not None and "numpy_pc_0" in data_dict)
             next_estimate = self.next_estimate
 
@@ -171,8 +182,7 @@ if _with_cv2:
                                                                            kpts, desc,
                                                                            self._previous_image, image)
                 if result is not None:
-                    np_transform = result
-                    next_estimate = torch.from_numpy(np_transform).to(self.device).reshape(1, 4, 4)
+                    next_estimate = result
 
                 if self.debug:
                     matches_image = cv2.drawMatches(self._previous_image, self._previous_kpts,
@@ -187,7 +197,7 @@ if _with_cv2:
 
             return next_estimate
 
-        def register_motion(self, relative_pose: torch.Tensor, data_dict: dict):
+        def save_real_motion(self, relative_pose: np.ndarray, data_dict: dict):
             if not self.ni_if_failure:
                 self.next_estimate = relative_pose
 
@@ -212,7 +222,7 @@ class PNConfig(InitializationConfig):
 class PoseNetInitialization(Initialization):
     """Initialization using a PoseNet for LiDAR odometry"""
 
-    def __init__(self, config: PNConfig, pose: Pose, device: torch.device = torch.device("cpu")):
+    def __init__(self, config: PNConfig, pose: Pose, device: torch.device = torch.device("cpu"), **kwargs):
         super().__init__(config)
         self.device = device
         self.pose = pose
@@ -255,7 +265,7 @@ class PoseNetInitialization(Initialization):
         state_dict = torch.load(str(self.checkpoint_file))
         self.prediction_module.load_state_dict(state_dict["prediction_module"])
 
-    def next_initial_pose(self, data_dict: Optional[dict] = None):
+    def next_initial_pose(self, data_dict: Optional[dict] = None, **kwargs):
         vertex_map = data_dict["vertex_map"]
         if self.previous_vertex_map is None:
             estimate = torch.eye(4, dtype=torch.float32, device=self.device).reshape(1, 4, 4)
@@ -268,7 +278,7 @@ class PoseNetInitialization(Initialization):
         self.previous_vertex_map = vertex_map
         return estimate
 
-    def register_motion(self, new_pose: torch.Tensor, data_dict: dict):
+    def save_real_motion(self, new_pose: torch.Tensor, data_dict: dict):
         pass
 
 
@@ -276,12 +286,12 @@ class PoseNetInitialization(Initialization):
 
 # Hydra Config Store : for the group odometry/initialization
 cs = ConfigStore.instance()
-cs.store(group="slam/odometry/initialization", name="CV", node=CVConfig)
-cs.store(group="slam/odometry/initialization", name="PoseNet", node=PNConfig)
-cs.store(group="slam/odometry/initialization", name="NI", node=NIConfig())
+cs.store(group="slam/initialization", name="CV", node=CVConfig)
+cs.store(group="slam/initialization", name="PoseNet", node=PNConfig)
+cs.store(group="slam/initialization", name="NI", node=NIConfig())
 
 if _with_cv2:
-    cs.store(group="odometry/initialization", name="EI", node=EIConfig)
+    cs.store(group="slam/initialization", name="EI", node=EIConfig)
 
 
 # ----------------------------------------------------------------------------------------------------------------------

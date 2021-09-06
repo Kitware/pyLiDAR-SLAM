@@ -11,13 +11,14 @@ import numpy as np
 from hydra.conf import dataclass
 
 # Project Imports
-from slam.backend.backend import Backend, BackendConfig, BACKEND
+from slam.backend import Backend, BackendConfig, BACKEND
 from slam.common.utils import assert_debug
 from slam.eval.eval_odometry import compute_absolute_poses
-from slam.loop_closure.loop_closure import LoopClosure, LoopClosureConfig, LOOP_CLOSURE
+from slam.initialization import Initialization, InitializationConfig, INITIALIZATION
+from slam.loop_closure import LoopClosure, LoopClosureConfig, LOOP_CLOSURE
 from slam.odometry import ODOMETRY
 from slam.odometry.odometry import OdometryAlgorithm, OdometryConfig
-from slam.preprocessing.preprocessing import Preprocessing
+from slam.preprocessing import Preprocessing, PreprocessingConfig
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -25,7 +26,8 @@ from slam.preprocessing.preprocessing import Preprocessing
 
 @dataclass
 class SLAMConfig:
-    preprocessing: Optional[Preprocessing] = None
+    initialization: Optional[InitializationConfig] = None
+    preprocessing: Optional[PreprocessingConfig] = None
     odometry: Optional[OdometryConfig] = None
     loop_closure: Optional[LoopClosureConfig] = None
     backend: Optional[BackendConfig] = None
@@ -36,18 +38,24 @@ class SLAM:
 
     A SLAM of pyLIDAR-SLAM consists of four modules
 
-        - Preprocessing     An Optional Preprocessing module which modifies the data_dict
+        - Motion Initialization     An Optional Initialization module, which predicts an initial estimate of
+                                    The motion before Registration of a new frame
 
-        - Odometry:         The Scan Matching algorithm which iteratively estimate the trajectory
-                            And produces frame-to-frame trajectory constraints i -> (i+1)
-                            Required
+        - Preprocessing             An Optional Preprocessing module which modifies the data_dict
 
-        - Loop Closure:     A Loop Closure module constructs constraints between
-                            Distant poses in the trajectory i -> j (such that i < j)
-                            (Optional)
+        - Odometry:                 The Scan Matching algorithm which iteratively estimate the trajectory
+                                    And produces frame-to-frame trajectory constraints i -> (i+1)
+                                    Required
 
-        - Backend:          The Backend estimate an optimal trajectory given the different constraints
-                            (Optional)
+        - Post Processing           An Optional module which modifies the contents of the data_dict : dict after the
+                                    Scan matching
+
+        - Loop Closure:             A Loop Closure module constructs constraints between
+                                    Distant poses in the trajectory i -> j (such that i < j)
+                                    (Optional)
+
+        - Backend:                  The Backend estimate an optimal trajectory given the different constraints
+                                    (Optional)
     """
 
     def __init__(self, config: SLAMConfig, **kwargs):
@@ -55,6 +63,7 @@ class SLAM:
         self.config = config
 
         # TODO -- Separate Processes for loop_closure and backend
+        self.initialization: Optional[Initialization] = None
         self.preprocessing: Optional[Preprocessing] = None
         self.odometry: Optional[OdometryAlgorithm] = None
         self.loop_closure: Optional[LoopClosure] = None
@@ -74,8 +83,19 @@ class SLAM:
         An initialization procedure called at the start of each sequence
         """
         self._frame_idx = 0
+        if self.initialization is not None:
+            del self.initialization
+            self.initialization = None
 
-        if self.preprocessing is None and self.config.preprocessing is not None:
+        if self.config.initialization is not None:
+            self.initialization = INITIALIZATION.load(self.config.initialization, **self.__kwargs)
+            self.initialization.init()
+
+        if self.preprocessing is not None:
+            del self.preprocessing
+            self.preprocessing = None
+
+        if self.config.preprocessing is not None:
             self.preprocessing = Preprocessing(self.config.preprocessing, **self.__kwargs)
 
         if self.odometry is None:
@@ -101,6 +121,10 @@ class SLAM:
             data_dict (dict): The new frame (consisting of a dictionary of data items) returned by the Dataset
         """
         beginning = time.time()
+
+        if self.initialization is not None:
+            self.initialization.next_frame(data_dict)
+
         if self.preprocessing is not None:
             self.preprocessing.forward(data_dict)
 
@@ -111,6 +135,9 @@ class SLAM:
         odometry_pose = None
         if self.odometry.relative_pose_key() in data_dict:
             odometry_pose = data_dict[self.odometry.relative_pose_key()]
+
+            if self.initialization is not None:
+                self.initialization.save_real_motion(data_dict[self.odometry.relative_pose_key()], data_dict)
 
             # Convert to double and reproject to the manifold of Rotation matrices to minimize error cumulation
             odometry_pose = odometry_pose.astype(np.float64)

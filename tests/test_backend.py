@@ -10,10 +10,10 @@ from viz3d.window import OpenGLWindow
 class BackendTestCase(unittest.TestCase):
     def test_graph_slam(self):
         # Construct Test problem
-        from slam.backend.backend import _with_g2o
+        from slam.backend import _with_g2o
         self.assertTrue(_with_g2o)
 
-        from slam.backend.backend import GraphSLAM, GraphSLAMConfig
+        from slam.backend import GraphSLAM, GraphSLAMConfig
 
         num_poses = 101
         thetas = 2 * np.pi * np.arange(num_poses) / num_poses
