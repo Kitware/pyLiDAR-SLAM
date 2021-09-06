@@ -87,7 +87,6 @@ if _with_rosbag:
         return _filter_value
 
 
-
     @nb.njit()
     def find_pc_id_with_azimuth(points: np.ndarray, azimuth_bin: int, min_num_points: int):
         """Finds the index of the first point with azimuth equal to azimuth_bin
