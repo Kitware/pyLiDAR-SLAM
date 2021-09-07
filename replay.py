@@ -129,6 +129,8 @@ def replay_slam(options: ReplayArguments) -> None:
                 elapsed_sec = time.time() - start
                 elapsed += elapsed_sec
 
+            if window is not None:
+                window.close(True)
         except KeyboardInterrupt:
             if _with_viz3d and window is not None:
                 window.close(True)
