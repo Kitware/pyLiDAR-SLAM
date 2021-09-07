@@ -1,9 +1,12 @@
 # Project Imports
 from typing import Optional
 
+import numpy as np
+
 from slam.common.geometry import projection_map_to_points, mask_not_null
 from slam.common.pose import Pose
 from slam.common.projection import Projector
+from slam.common.torch_utils import convert_pose_transform
 from slam.common.utils import check_sizes, remove_nan, modify_nan_pmap
 from slam.common.modules import _with_viz3d
 from slam.dataset import DatasetLoader
@@ -186,7 +189,8 @@ class ICPFrameToModel(OdometryAlgorithm):
         if self._has_window:
             # Add Ground truth poses (mainly for visualization purposes)
             if DatasetLoader.absolute_gt_key() in data_dict:
-                pose_gt = data_dict[DatasetLoader.absolute_gt_key()].reshape(1, 4, 4).cpu().numpy()
+                pose_gt = convert_pose_transform(data_dict[DatasetLoader.absolute_gt_key()],
+                                                 np.ndarray, dtype=np.float64)
                 self.gt_poses = pose_gt if self.gt_poses is None else np.concatenate(
                     [self.gt_poses, pose_gt], axis=0)
 
