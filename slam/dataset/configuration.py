@@ -33,6 +33,15 @@ class DatasetLoader(ABC):
     A DatasetConfiguration is the configuration for the construction of pytorch Datasets
     """
 
+    @classmethod
+    def max_num_workers(cls):
+        """Returns the maximum number of workers allowed by this dataset
+
+        Note: Not respecting this constraint can lead to undefined behaviour for
+              Datasets which do not support Random Access
+        """
+        return 20
+
     @staticmethod
     def absolute_gt_key():
         """The key (in data_dict) for the absolute_pose_gt"""

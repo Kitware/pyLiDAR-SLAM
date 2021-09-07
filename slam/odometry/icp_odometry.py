@@ -134,7 +134,7 @@ class ICPFrameToModel(OdometryAlgorithm):
                 self.viz3d_window.close(True)
                 self.viz3d_window = None
             self.viz3d_window = OpenGLWindow(
-                engine_config={"with_edl": self.config.viz_with_edl, "edl_strength": 1000.0})
+                engine_config={"with_edl": self.config.viz_with_edl, "edl_strength": 10000.0, "edl_distance": 0.5})
             self.viz3d_window.init()
 
     def _initial_pose(self, data_dict: dict):
@@ -206,7 +206,7 @@ class ICPFrameToModel(OdometryAlgorithm):
             # Apply absolute pose to the pointcloud
             world_points = np.einsum("ij,nj->ni", latest_pose[:3, :3].astype(np.float32), tgt_np_pc)
             world_points += latest_pose[:3, 3].reshape(1, 3).astype(np.float32)
-            self.viz3d_window.set_pointcloud(self._iter % self.config.viz_num_pcs, world_points)
+            self.viz3d_window.set_pointcloud(self._iter % self.config.viz_num_pcs, world_points, point_size=1)
             # Follow Camera
             camera_pose = latest_pose.astype(np.float32).dot(np.array([[1.0, 0.0, 0.0, 0.0],
                                                                        [0.0, 1.0, 0.0, 0.0],

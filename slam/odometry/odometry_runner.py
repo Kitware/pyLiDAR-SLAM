@@ -238,6 +238,7 @@ class SLAMRunner(ABC):
         Where :
             sequence_name is the name of a sequence which will be constructed
         """
+        self.num_workers = min(self.dataset_loader.max_num_workers(), self.num_workers)
         train_dataset, _, _, _ = self.dataset_loader.sequences()
         assert_debug(train_dataset is not None)
         pairs = [(train_dataset[1][idx], train_dataset[0][idx]) for idx in range(len(train_dataset[0]))]

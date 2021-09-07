@@ -184,6 +184,10 @@ if _with_rosbag:
                 config = RosbagConfig(**config)
             super().__init__(config)
 
+        @classmethod
+        def max_num_workers(cls):
+            return 1
+
         def projector(self) -> SphericalProjector:
             return SphericalProjector(height=self.config.lidar_height, width=self.config.lidar_width,
                                       up_fov=self.config.up_fov, down_fov=self.config.down_fov)
