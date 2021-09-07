@@ -203,7 +203,7 @@ class ICPFrameToModel(OdometryAlgorithm):
             # Add Ground truth poses (mainly for visualization purposes)
             if DatasetLoader.absolute_gt_key() in data_dict:
                 pose_gt = convert_pose_transform(data_dict[DatasetLoader.absolute_gt_key()],
-                                                 np.ndarray, dtype=np.float64)
+                                                 np.ndarray, dtype=np.float64).reshape(1, 4, 4)
                 self.gt_poses = pose_gt if self.gt_poses is None else np.concatenate(
                     [self.gt_poses, pose_gt], axis=0)
 
