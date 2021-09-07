@@ -491,7 +491,6 @@ if _with_rosbag:
                             new_pose = pose_init.dot(nwu_pose).reshape(1, 4, 4)
                             poses = new_pose if poses is None else np.concatenate([poses, new_pose], axis=0)
 
-
                     if "numpy_pc_timestamps" in data_dict:
                         timestamps = data_dict["numpy_pc_timestamps"]
                         timestamp_max = timestamps.max()
