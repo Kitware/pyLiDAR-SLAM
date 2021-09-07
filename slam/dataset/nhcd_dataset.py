@@ -76,7 +76,7 @@ class NHCDOdometrySequence(Dataset):
     @staticmethod
     def num_frames(sequence_id: str):
         if sequence_id == "01_short_experiment":
-            return 15302
+            return 15301
         elif sequence_id == "02_long_experiment":
             # Remove the last 600 frames which correspond to the arrival of the sensor to the garage
             # And includes very abrupt, motions
