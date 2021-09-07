@@ -198,6 +198,7 @@ if _with_rosbag:
             self.current_frame = None  # The current frame being built
             self.current_timestamps = None
             self.skip_next_frame = False
+            self.frame_idx_to_timestamp = dict()
 
         @staticmethod
         def pointcloud_topic(acquisition: ACQUISITION):
@@ -245,6 +246,9 @@ if _with_rosbag:
 
         def _save_topic(self, data_dict, key, topic, msg, timestamp, frame_index: int = -1, **kwargs):
             if "PointCloud2" in msg._type:
+                if frame_index not in self.frame_idx_to_timestamp:
+                    self.frame_idx_to_timestamp[frame_index] = timestamp.secs * 10e9 + timestamp.nsecs
+                self.frame_idx_to_timestamp[frame_index + 1] = timestamp.secs * 10e9 + timestamp.nsecs
                 data, timestamps = self.decode_pointcloud(msg, timestamp)
                 pc, timestamps, _packet_ids = self.estimate_timestamps(frame_index, data)
                 _, _filter_nan = remove_nan(pc)
@@ -309,17 +313,34 @@ if _with_rosbag:
                 latitude = msg.latitude
                 longitude = msg.longitude
                 altitude = msg.altitude
-                llu = np.array([latitude, longitude, altitude])
+                llu = np.array([longitude, latitude, altitude])
                 ypr = np.array([yaw, pitch, roll])
 
                 data_dict[key].append((timestamp.secs * 10e9 + timestamp.nsecs, (llu, ypr)))
             return data_dict
+
+        def ros_pose_timestamp(self, pc_timestamp: float):
+            pc_timestamp_0 = np.floor(pc_timestamp)
+            if pc_timestamp == pc_timestamp_0:
+                return self.frame_idx_to_timestamp[int(pc_timestamp_0)]
+            pc_timestamp_1 = pc_timestamp_0 + 1
+            if pc_timestamp == pc_timestamp_1:
+                return self.frame_idx_to_timestamp[int(pc_timestamp_1)]
+
+            ros_timestamp_0 = self.frame_idx_to_timestamp[pc_timestamp_0]
+            ros_timestamp_1 = self.frame_idx_to_timestamp[pc_timestamp_1]
+
+            theta = (pc_timestamp - pc_timestamp_0) / (pc_timestamp_1 - pc_timestamp_0)
+            ros_timestamp_a = (1 - theta) * ros_timestamp_0 + theta * ros_timestamp_1
+
+            return ros_timestamp_a
 
         def __getitem__(self, index):
             if self.skip_next_frame:
                 data_dict = dict()
                 data_dict["numpy_pc"] = self.current_frame
                 data_dict["numpy_pc_timestamps"] = self.current_timestamps
+                data_dict["ros_timestamp"] = self.ros_pose_timestamp(np.max(self.current_timestamps))
                 self.current_timestamps = None
                 self.current_frame = None
                 self.skip_next_frame = False
@@ -327,6 +348,7 @@ if _with_rosbag:
                 return data_dict
 
             data_dict = super().__getitem__(index)
+            data_dict["ros_timestamp"] = self.ros_pose_timestamp(np.max(data_dict["numpy_pc_timestamps"]))
             if self.ground_truth_poses is not None:
                 pose_gt = self.ground_truth_poses[index]
 
@@ -424,6 +446,9 @@ if _with_rosbag:
                 timestamp_0 = None
                 init_enu = None
                 init_llu = None
+
+                poses = None
+                pose_init = None
                 for b_idx, data_dict in tqdm(enumerate(dataset), ncols=100, total=len(dataset), ascii=True):
                     if "odom" in data_dict:
                         poses_data = data_dict["gps_pose"]
@@ -431,9 +456,9 @@ if _with_rosbag:
                             llu, ypr = pose_items
                             timestamps_odom_poses.append(timestamp)
 
-                            longitude = llu[0] * np.pi / 180
-                            latitude = llu[1] * np.pi / 180
-                            altitude = llu[2] * np.pi / 180
+                            longitude = llu[0]
+                            latitude = llu[1]
+                            altitude = llu[2]
                             yaw = ypr[0] * np.pi / 180
                             pitch = ypr[1] * np.pi / 180
                             roll = ypr[2] * np.pi / 180
@@ -461,12 +486,20 @@ if _with_rosbag:
 
                             odom_poses.append(nwu_pose)
 
+                            if pose_init is None:
+                                pose_init = np.linalg.inv(nwu_pose)
+                            new_pose = pose_init.dot(nwu_pose).reshape(1, 4, 4)
+                            poses = new_pose if poses is None else np.concatenate([poses, new_pose], axis=0)
+
+
                     if "numpy_pc_timestamps" in data_dict:
                         timestamps = data_dict["numpy_pc_timestamps"]
                         timestamp_max = timestamps.max()
                         if timestamp_0 is None:
                             timestamp_0 = timestamp_max
-                        timestamps_pointclouds.append(timestamp_max)
+
+                        timestamp = data_dict["ros_timestamp"]
+                        timestamps_pointclouds.append(timestamp)
 
                 timestamps_pointclouds = np.array(timestamps_pointclouds).reshape(-1)  # [N]
                 timestamps_odom_poses = np.array(timestamps_odom_poses).reshape(-1)  # [N]
@@ -477,6 +510,8 @@ if _with_rosbag:
                 span_lidar_poses = np.einsum("ij,njk->nik", np.linalg.inv(span_lidar_poses[0]), span_lidar_poses)
 
                 poses_filename = str(self.root_dir / self.groundtruth_filename(sequence))
+
+                write_poses_to_disk(str(self.root_dir / "sequence.txt"), odom_poses)
                 write_poses_to_disk(poses_filename, span_lidar_poses)
 
         def rosbag_config(self, sequence_name: str) -> RosbagConfig:
@@ -548,5 +583,6 @@ if _with_rosbag:
                 absolute_poses = read_poses_from_disk(file_path)
                 absolute_poses = np.einsum("ij,njk->nik", np.linalg.inv(absolute_poses[0]), absolute_poses)
                 return compute_relative_poses(absolute_poses) if relative else absolute_poses
-            logging.warning("[URBAN LOCO]The ground truth for sequence was not found.")
+            logging.warning(f"[URBAN LOCO]The ground truth for sequence {sequence_name} was not found.")
+
             return None
