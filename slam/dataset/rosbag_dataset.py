@@ -59,9 +59,9 @@ if _with_rosbag:
             topic_mapping (dict): The mapping topic name to key in the data_dict
         """
 
-        def _lazy_initialization(self):
+        def _lazy_initialization(self, prefix: str = ""):
             if not self.initialized:
-                logging.info(f"[RosbagDataset]Loading ROSBAG {self.file_path}. May take some time")
+                logging.info(f"[RosbagDataset]{prefix}Loading ROSBAG {self.file_path}. May take some time")
                 self.rosbag = rosbag.Bag(self.file_path, "r")
                 logging.info(f"Done.")
 
@@ -72,6 +72,9 @@ if _with_rosbag:
                                  f"(existing topics : {list(topic_info.topics.keys())}")
                 self._len = self.rosbag.get_message_count(self.main_topic) // self._frame_size
                 self.initialized = True
+
+        def init(self):
+            self._lazy_initialization()
 
         def __init__(self, config: RosbagConfig, file_path: str, main_topic: str, frame_size: int,
                      topic_mapping: Optional[dict] = None):
@@ -92,7 +95,7 @@ if _with_rosbag:
             self.__iter = None
 
         def __iter__(self):
-            self._lazy_initialization()
+            self._lazy_initialization("[ITER]")
             self.__iter = self.rosbag.read_messages(self._topics)
             self._idx = 0
             return self
@@ -126,7 +129,7 @@ if _with_rosbag:
                 data_dict[timestamps_key].append(timestamps)
 
         def __getitem__(self, index) -> dict:
-            self._lazy_initialization()
+            self._lazy_initialization("[GETITEM]")
             assert_debug(index == self._idx, "A RosbagDataset does not support Random access")
             assert isinstance(self.config, RosbagConfig)
             if self.__iter is None:
@@ -150,12 +153,22 @@ if _with_rosbag:
             return self[self._idx]
 
         def __len__(self):
-            self._lazy_initialization()
+            self._lazy_initialization("[LEN]")
             return self._len
 
+        def close(self):
+            if self.initialized:
+                if self.rosbag is not None:
+                    self.rosbag.close()
+                del self.rosbag
+                self.rosbag = None
+                self.initialized = False
+                self._len = -1
+                self._idx = 0
+                self.__iter = None
+
         def __del__(self):
-            if self.rosbag is not None:
-                self.rosbag.close()
+            self.close()
 
 
     # Hydra -- stores a RosbagConfig `rosbag` in the `dataset` group
