@@ -211,6 +211,7 @@ if _with_rosbag:
         def ground_truth_topic():
             return "/novatel_data/inspvax"
 
+
         @staticmethod
         def _topics_mapping(acquisition: ACQUISITION):
             return {UrbanLocoDataset.ground_truth_topic(): DatasetLoader.absolute_gt_key(),
@@ -412,6 +413,12 @@ if _with_rosbag:
             "HK-Data20190316-1": UrbanLocoDataset.ACQUISITION.HONG_KONG
         }
 
+
+
+        @classmethod
+        def max_num_workers(cls):
+            return 1
+
         def __init__(self, config: UrbanLocoConfig, **kwargs):
             super().__init__(config)
             self.root_dir = Path(config.root_dir)
@@ -490,7 +497,6 @@ if _with_rosbag:
                                 pose_init = np.linalg.inv(nwu_pose)
                             new_pose = pose_init.dot(nwu_pose).reshape(1, 4, 4)
                             poses = new_pose if poses is None else np.concatenate([poses, new_pose], axis=0)
-
 
                     if "numpy_pc_timestamps" in data_dict:
                         timestamps = data_dict["numpy_pc_timestamps"]
