@@ -39,7 +39,7 @@ if _with_ct_icp:
                         cls.__annotations__[key] = key_type
                         setattr(cls, key, default_value)
                     elif key_type in [pct.ICP_DISTANCE, pct.LEAST_SQUARES, pct.CT_ICP_DATASET, pct.MOTION_COMPENSATION,
-                                      pct.INITIALIZATION]:
+                                      pct.CT_ICP_SOLVER, pct.INITIALIZATION]:
                         # Replace pyct_icp enums by string
                         cls.__annotations__[key] = str
                         value_name = default_value.name
@@ -89,6 +89,8 @@ if _with_ct_icp:
                         field_value = getattr(pct.ICP_DISTANCE, field_value)
                     elif field_name == "loss_function":
                         field_value = getattr(pct.LEAST_SQUARES, field_value)
+                    elif field_name == "solver":
+                        field_value = getattr(pct.CT_ICP_SOLVER, field_value)
                     else:
                         raise NotImplementedError(f"The field name {field_value} is not recognised")
                     setattr(options, field_name, field_value)
@@ -183,7 +185,7 @@ if _with_ct_icp:
 
     def default_small_motion_config() -> CT_ICPOdometryConfig:
         default_config = CT_ICPOdometryConfig()
-        default_pct_options = pct.DefaultSlowOutdoorProfile()
+        default_pct_options = pct.DefaultRobustOutdoorLowInertia()
         default_config.options = OdometryOptionsWrapper.build_from_pct(default_pct_options)
         return default_config
 
@@ -230,10 +232,10 @@ if _with_ct_icp:
         def init(self):
             """Initialize/ReInitialize the state of the Algorithm and its components"""
             super().init()
+            import logging
+            logging.basicConfig(level=logging.WARNING)
 
             self.options = OdometryOptionsWrapper(**self.config.options).to_pct_object()
-            self.options.debug_print = False
-            self.options.ct_icp_options.debug_print = False
             self.ct_icp_odometry = pct.Odometry(self.options)
 
             self._frame_index = 0
@@ -336,7 +338,7 @@ if _with_ct_icp:
                 wpoints = world_points.astype(np.float32)
                 self.viz3d_window.set_pointcloud(self._frame_index % 100, wpoints)
                 self.viz3d_window.update_camera(new_pose.astype(np.float32))
-                if self._frame_index % 20 == 0:
+                if self._frame_index % 1 == 0:
                     if len(self.gt_poses) > 0:
                         self.viz3d_window.set_poses(-1, np.array(self.gt_poses).astype(np.float32))
 

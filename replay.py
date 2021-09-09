@@ -116,8 +116,9 @@ def replay_slam(options: ReplayArguments) -> None:
                 if poses is not None:
                     window.init()
                     saved_poses = poses[options.start_index:]
-                    saved_poses = np.einsum("ij,njk->nik", np.linalg.inv(saved_poses[0]), saved_poses)
-                    window.set_poses(0, saved_poses.astype(np.float32))
+                    if saved_poses.shape[0] > 0:
+                        saved_poses = np.einsum("ij,njk->nik", np.linalg.inv(saved_poses[0]), saved_poses)
+                        window.set_poses(0, saved_poses.astype(np.float32))
 
             for data_dict in tqdm(dataset, desc=f"Sequence {sequence_name}", ncols=100, total=num_frames):
                 start = time.time()
