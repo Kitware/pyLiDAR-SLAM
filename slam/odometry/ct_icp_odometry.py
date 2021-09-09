@@ -183,6 +183,13 @@ if _with_ct_icp:
         return default_config
 
 
+    def robust_drive_config() -> CT_ICPOdometryConfig:
+        default_config = CT_ICPOdometryConfig()
+        default_pct_options = pct.RobustDrivingProfile()
+        default_config.options = OdometryOptionsWrapper.build_from_pct(default_pct_options)
+        return default_config
+
+
     def default_small_motion_config() -> CT_ICPOdometryConfig:
         default_config = CT_ICPOdometryConfig()
         default_pct_options = pct.DefaultRobustOutdoorLowInertia()
@@ -194,6 +201,7 @@ if _with_ct_icp:
     cs = ConfigStore.instance()
     cs.store(name="ct_icp", group="slam/odometry", node=CT_ICPOdometryConfig())
     cs.store(name="ct_icp_drive", group="slam/odometry", node=default_drive_config())
+    cs.store(name="ct_icp_robust_drive", group="slam/odometry", node=robust_drive_config())
     cs.store(name="ct_icp_slow_outdoor", group="slam/odometry", node=default_small_motion_config())
 
 
