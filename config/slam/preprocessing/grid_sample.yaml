@@ -1,11 +1,21 @@
 # @package _group_
 
 filters:
+
   "1":
-    filter_name: grid_sample
-    voxel_size: 0.3
+    filter_name: distortion
+    force: false                          # Whether to fail if timestamps cannot be found
+    activate: true                        # Distortion is only activated if this activate=true
+    pointcloud_key: numpy_pc              # The point cloud key in the dict
+    timestamps_key: numpy_pc_timestamps   # The timestamps key in the dict
+    output_key: distorted
 
   "2":
+    filter_name: grid_sample
+    voxel_size: 0.3
+    pointcloud_key: distorted
+
+  "3":
     filter_name: to_tensor
     keys:
       sample_points: input_data

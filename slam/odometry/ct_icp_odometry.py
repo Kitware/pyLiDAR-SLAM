@@ -14,7 +14,6 @@ if _with_ct_icp:
     from slam.viz.color_map import *
     from slam.common.modules import _with_viz3d
 
-
     if _with_viz3d:
         from viz3d.window import OpenGLWindow, field
 
@@ -39,14 +38,15 @@ if _with_ct_icp:
                     if key_type in [str, int, float, bool]:
                         cls.__annotations__[key] = key_type
                         setattr(cls, key, default_value)
-                    elif key_type in [pct.ICP_DISTANCE, pct.LEAST_SQUARES, pct.CT_ICP_DATASET, pct.MOTION_COMPENSATION]:
+                    elif key_type in [pct.ICP_DISTANCE, pct.LEAST_SQUARES, pct.CT_ICP_DATASET, pct.MOTION_COMPENSATION,
+                                      pct.CT_ICP_SOLVER, pct.INITIALIZATION]:
                         # Replace pyct_icp enums by string
                         cls.__annotations__[key] = str
                         value_name = default_value.name
                         setattr(cls, key, value_name)
                     elif key_type == pct.CTICPOptions:
                         cls.__annotations__[key] = CTICPOptionsWrapper
-                        setattr(cls, key, CTICPOptionsWrapper._build_from_pct(default_value))
+                        setattr(cls, key, CTICPOptionsWrapper.build_from_pct(default_value))
                         print(f"Type {key_type} is not recognised")
 
             return cls
@@ -62,10 +62,10 @@ if _with_ct_icp:
         def _enums():
             # Return the enums used in the options of pyct_icp
             # They need to be processed differently to insure compatibility with hydra
-            return ["distance", "loss_function"]
+            return ["distance", "loss_function", "solver"]
 
         @staticmethod
-        def _build_from_pct(pct_options: pct.CTICPOptions):
+        def build_from_pct(pct_options: pct.CTICPOptions):
             from dataclasses import _FIELDS
             assert_debug(isinstance(pct_options, pct.CTICPOptions))
 
@@ -89,6 +89,8 @@ if _with_ct_icp:
                         field_value = getattr(pct.ICP_DISTANCE, field_value)
                     elif field_name == "loss_function":
                         field_value = getattr(pct.LEAST_SQUARES, field_value)
+                    elif field_name == "solver":
+                        field_value = getattr(pct.CT_ICP_SOLVER, field_value)
                     else:
                         raise NotImplementedError(f"The field name {field_value} is not recognised")
                     setattr(options, field_name, field_value)
@@ -103,6 +105,12 @@ if _with_ct_icp:
     @dataclass
     @add_pct_annotations(pct.OdometryOptions)  # /!\ Generate the properties from the attributes of pcd.OdometryOptions
     class OdometryOptionsWrapper:
+
+        @staticmethod
+        def _enums():
+            # Return the enums used in the options of pyct_icp
+            # They need to be processed differently to insure compatibility with hydra
+            return ["motion_compensation", "initialization"]
 
         @staticmethod
         def return_fieldnames():
@@ -120,12 +128,36 @@ if _with_ct_icp:
                     field_value = getattr(self, field_name)
                     field_value = getattr(pct.MOTION_COMPENSATION, field_value)
                     setattr(options, field_name, field_value)
+                elif field_name == "initialization":
+                    field_value = getattr(self, field_name)
+                    field_value = getattr(pct.INITIALIZATION, field_value)
+                    setattr(options, field_name, field_value)
                 else:
                     field_value = getattr(self, field_name)
                     assert_debug(field_value != MISSING)
                     setattr(options, field_name, field_value)
 
             return options
+
+        @staticmethod
+        def build_from_pct(pct_options: pct.OdometryOptions):
+            from dataclasses import _FIELDS
+            assert_debug(isinstance(pct_options, pct.OdometryOptions))
+
+            wrapped = OdometryOptionsWrapper()
+            for _field in getattr(wrapped, _FIELDS):
+                if _field == "ct_icp_options":
+                    value_ = getattr(pct_options, _field)
+                    assert_debug(isinstance(value_, pct.CTICPOptions))
+                    value_ = CTICPOptionsWrapper.build_from_pct(value_)
+                    setattr(wrapped, _field, value_)
+                elif _field in OdometryOptionsWrapper._enums():
+                    value_ = getattr(pct_options, _field)
+                    setattr(wrapped, _field, value_.name)
+                else:
+                    setattr(wrapped, _field, getattr(pct_options, _field))
+
+            return wrapped
 
 
     @dataclass
@@ -144,9 +176,33 @@ if _with_ct_icp:
         options: OdometryOptionsWrapper = field(default_factory=lambda: OdometryOptionsWrapper())
 
 
+    def default_drive_config() -> CT_ICPOdometryConfig:
+        default_config = CT_ICPOdometryConfig()
+        default_pct_options = pct.DefaultDrivingProfile()
+        default_config.options = OdometryOptionsWrapper.build_from_pct(default_pct_options)
+        return default_config
+
+
+    def robust_drive_config() -> CT_ICPOdometryConfig:
+        default_config = CT_ICPOdometryConfig()
+        default_pct_options = pct.RobustDrivingProfile()
+        default_config.options = OdometryOptionsWrapper.build_from_pct(default_pct_options)
+        return default_config
+
+
+    def default_small_motion_config() -> CT_ICPOdometryConfig:
+        default_config = CT_ICPOdometryConfig()
+        default_pct_options = pct.DefaultRobustOutdoorLowInertia()
+        default_config.options = OdometryOptionsWrapper.build_from_pct(default_pct_options)
+        return default_config
+
+
     # Store ct_icp in the group slam/odometry
     cs = ConfigStore.instance()
     cs.store(name="ct_icp", group="slam/odometry", node=CT_ICPOdometryConfig())
+    cs.store(name="ct_icp_drive", group="slam/odometry", node=default_drive_config())
+    cs.store(name="ct_icp_robust_drive", group="slam/odometry", node=robust_drive_config())
+    cs.store(name="ct_icp_slow_outdoor", group="slam/odometry", node=default_small_motion_config())
 
 
     class CT_ICPOdometry(OdometryAlgorithm):
@@ -184,10 +240,10 @@ if _with_ct_icp:
         def init(self):
             """Initialize/ReInitialize the state of the Algorithm and its components"""
             super().init()
+            import logging
+            logging.basicConfig(level=logging.WARNING)
 
             self.options = OdometryOptionsWrapper(**self.config.options).to_pct_object()
-            self.options.debug_print = False
-            self.options.ct_icp_options.debug_print = False
             self.ct_icp_odometry = pct.Odometry(self.options)
 
             self._frame_index = 0
@@ -199,7 +255,7 @@ if _with_ct_icp:
                     self.viz3d_window.close(True)
                     self.viz3d_window = None
                 self.viz3d_window = OpenGLWindow(
-                    engine_config={"with_edl": True, "edl_strength": 1000.0})
+                    engine_config={"with_edl": True, "edl_strength": 10000.0})
                 self.viz3d_window.init()
 
         # ------------------------------------------------------------------------------------------------------------------
@@ -290,7 +346,7 @@ if _with_ct_icp:
                 wpoints = world_points.astype(np.float32)
                 self.viz3d_window.set_pointcloud(self._frame_index % 100, wpoints)
                 self.viz3d_window.update_camera(new_pose.astype(np.float32))
-                if self._frame_index % 20 == 0:
+                if self._frame_index % 1 == 0:
                     if len(self.gt_poses) > 0:
                         self.viz3d_window.set_poses(-1, np.array(self.gt_poses).astype(np.float32))
 

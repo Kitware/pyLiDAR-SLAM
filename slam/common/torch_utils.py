@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional, Type
 
 import torch
 from torchvision.transforms.functional import to_tensor
@@ -6,6 +6,8 @@ import collections
 from torch.utils.data.dataloader import default_collate
 
 import numpy as np
+
+from slam.common.utils import assert_debug, check_tensor
 
 
 def custom_to_tensor(data: Union[torch.Tensor, np.ndarray, dict],
@@ -77,6 +79,49 @@ def send_to_device(data: Union[dict, torch.Tensor, np.ndarray],
                                 torchviz_conversion=torchviz_conversion)
 
     return data
+
+
+def convert_pose_transform(pose: Union[torch.Tensor, np.ndarray],
+                           dest: type = torch.Tensor,
+                           device: Optional[torch.device] = None,
+                           dtype: Optional[Union[torch.dtype, np.number, Type]] = None):
+    """Converts a [4, 4] pose tensor to the desired type
+
+    Returns a tensor (either a numpy.ndarray or torch.Tensor depending on dest type)
+    >>> check_tensor(convert_pose_transform(torch.eye(4).reshape(4, 4), np.ndarray), [4, 4])
+    >>> check_tensor(convert_pose_transform(torch.eye(4).reshape(1, 4, 4), np.ndarray, dtype=np.float32), [4, 4])
+    >>> check_tensor(convert_pose_transform(torch.eye(4).reshape(1, 4, 4), torch.Tensor, dtype=torch.float32), [1, 4, 4])
+    >>> check_tensor(convert_pose_transform(torch.eye(4).reshape(4, 4), torch.Tensor, dtype=torch.float32), [4, 4])
+    >>> check_tensor(convert_pose_transform(np.eye(4).reshape(4, 4), torch.Tensor, dtype=torch.float32), [4, 4])
+    >>> check_tensor(convert_pose_transform(np.eye(4).reshape(4, 4), np.ndarray, dtype=np.float32), [4, 4])
+    >>> check_tensor(convert_pose_transform(np.eye(4).reshape(4, 4), np.ndarray), [4, 4])
+    """
+    # Check size
+    if isinstance(pose, torch.Tensor):
+        assert_debug(list(pose.shape) == [1, 4, 4] or list(pose.shape) == [4, 4],
+                     f"Wrong tensor shape, expected [(1), 4, 4], got {pose.shape}")
+        if dest == torch.Tensor:
+            assert_debug(isinstance(dtype, torch.dtype), f"The dtype {dtype} is not a torch.dtype")
+            return pose.to(device=device if device is not None else pose.device,
+                           dtype=dtype if dtype is not None else pose.dtype)
+        else:
+            assert_debug(dest == np.ndarray, "Only numpy.ndarray and torch.Tensor are supported as destination tensor")
+            np_array = pose.detach().cpu().numpy()
+            if dtype is not None:
+                assert_debug(issubclass(dtype, np.number), f"Expected a numpy.dtype, got {dtype}")
+                np_array = np_array.astype(dtype)
+            return np_array.reshape(4, 4)
+    else:
+        assert_debug(isinstance(pose, np.ndarray), f"Only numpy.ndarray and torch.Tensor are supported. Got {pose}.")
+        check_tensor(pose, [4, 4])
+        if dest == torch.Tensor:
+            tensor = torch.from_numpy(pose).to(dtype=dtype, device=device)
+            return tensor
+        if dtype is not None:
+            assert_debug(issubclass(dtype, np.number), f"Expected numpy.dtype, got {dtype}")
+            new_pose = pose.astype(dtype)
+            return new_pose
+        return pose
 
 
 # ----------------------------------------------------------------------------------------------------------------------

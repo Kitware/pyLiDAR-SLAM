@@ -58,6 +58,7 @@ class SLAMRunnerConfig:
     # Debug parameters
     viz_num_pointclouds: int = 200
     debug: bool = True
+    save_results: bool = True
 
 
 # -------------
@@ -81,9 +82,9 @@ class SLAMRunner(ABC):
         # Pytorch parameters extracted
         self.num_workers = self.config.num_workers
         self.batch_size = 1
-        self.pin_memory = self.config.pin_memory
         self.log_dir = self.config.log_dir
         self.device = torch.device(self.config.device)
+        self.pin_memory = self.config.pin_memory if self.device != torch.device("cpu") else False
 
         self.pose = Pose(self.config.pose)
         self.viz_num_pointclouds = self.config.viz_num_pointclouds
@@ -135,9 +136,7 @@ class SLAMRunner(ABC):
         try:
             # Load the Datasets
             datasets: list = self.load_datasets()
-            # Load the Slam algorithm
-            slam = self.load_slam_algorithm()
-            self.save_config()
+
         except (KeyboardInterrupt, Exception) as e:
             self.handle_failure()
             raise
@@ -150,7 +149,10 @@ class SLAMRunner(ABC):
                                     batch_size=self.batch_size,
                                     num_workers=self.num_workers)
 
-            # Init the SLAM
+            # Load/Init the SLAM
+            slam = self.load_slam_algorithm()
+            if self.config.save_results:
+                self.save_config()
             slam.init()
 
             elapsed = 0.0
@@ -181,8 +183,9 @@ class SLAMRunner(ABC):
                 catch_exception()
                 raise e
 
-            # Dump trajectory constraints in case of loop closure
-            slam.dump_all_constraints(str(Path(self.log_dir) / sequence_name))
+            if self.config.save_results:
+                # Dump trajectory constraints in case of loop closure
+                slam.dump_all_constraints(str(Path(self.log_dir) / sequence_name))
 
             # Evaluate the SLAM if it has a ground truth
             relative_poses = slam.get_relative_poses()
@@ -190,7 +193,11 @@ class SLAMRunner(ABC):
             if relative_ground_truth is not None:
                 check_tensor(relative_ground_truth, [relative_poses.shape[0], 4, 4])
 
-            self.save_and_evaluate(sequence_name, relative_poses, relative_ground_truth, elapsed=elapsed)
+            del slam
+            del dataloader
+
+            if self.config.save_results:
+                self.save_and_evaluate(sequence_name, relative_poses, relative_ground_truth, elapsed=elapsed)
 
     def save_and_evaluate(self, sequence_name: str,
                           trajectory: np.ndarray,
@@ -231,6 +238,7 @@ class SLAMRunner(ABC):
         Where :
             sequence_name is the name of a sequence which will be constructed
         """
+        self.num_workers = min(self.dataset_loader.max_num_workers(), self.num_workers)
         train_dataset, _, _, _ = self.dataset_loader.sequences()
         assert_debug(train_dataset is not None)
         pairs = [(train_dataset[1][idx], train_dataset[0][idx]) for idx in range(len(train_dataset[0]))]

@@ -19,13 +19,14 @@ if _with_rosbag:
 
     from slam.common.io import read_poses_from_disk, write_poses_to_disk
     from slam.common.pose import PosesInterpolator
-    from slam.common.projection import SphericalProjector, SphericalProjector, SphericalProjector
-    from slam.common.utils import assert_debug
+    from slam.common.projection import SphericalProjector
+    from slam.common.utils import assert_debug, remove_nan
     from slam.dataset import DatasetConfig
     from typing import Optional
 
     import numpy as np
     import numba as nb
+    from numba import prange
     from scipy.spatial.transform.rotation import Rotation as R
     from enum import Enum
 
@@ -33,12 +34,12 @@ if _with_rosbag:
     from slam.eval.eval_odometry import compute_relative_poses
 
 
-    @nb.jit(nopython=True)
+    @nb.jit(nopython=True, parallel=True)
     def compute_ring_ids(theta_bins, unique):
         """Compute ring ids by grouping points by polar angle bins (in spherical projection)"""
         ring_ids = -1 * np.ones_like(theta_bins)
         # convert thetas_bins to ring indices
-        for idx in range(theta_bins.shape[0]):
+        for idx in prange(theta_bins.shape[0]):
             value = theta_bins[idx]
             for rid in range(32):
                 bin_value = unique[rid]
@@ -72,6 +73,33 @@ if _with_rosbag:
             ring_ids_set.add(ring_id)
             array[idx] = packet_id
         return array
+
+
+    @nb.njit()
+    def add_packets_until(timestamps, points, bin_id: int):
+        _filter_value = None
+        for idx in range(points.shape[0]):
+            point_bin_id = int(np.arctan2(points[idx, 1], points[idx, 0]) * 180 / np.pi)
+
+            if point_bin_id == bin_id:
+                _filter_value = timestamps <= timestamps[point_bin_id]
+                break
+        return _filter_value
+
+
+    @nb.njit()
+    def find_pc_id_with_azimuth(points: np.ndarray, azimuth_bin: int, min_num_points: int):
+        """Finds the index of the first point with azimuth equal to azimuth_bin
+        After at least min_num_points have been passed
+        """
+        for idx in range(points.shape[0]):
+            point_bin_id = int(np.arctan2(points[idx, 1], points[idx, 0]) * 180 / np.pi)
+
+            if azimuth_bin == point_bin_id:
+                if idx > min_num_points:
+                    return idx
+
+        return None
 
 
     _california_ext_to_lidar = np.array([[0., -1., 0., -5.245e-01],
@@ -166,10 +194,11 @@ if _with_rosbag:
 
             self.synchronise_azimuth = synchronise_azimuth
             self.azimuth_bin = azimuth_bin
-            self.current_frame = []
-            self.current_timestamps = []
-            self.skip_frame = False
-            self.use_first_id = False
+
+            self.current_frame = None  # The current frame being built
+            self.current_timestamps = None
+            self.skip_next_frame = False
+            self.frame_idx_to_timestamp = dict()
 
         @staticmethod
         def pointcloud_topic(acquisition: ACQUISITION):
@@ -181,6 +210,7 @@ if _with_rosbag:
         @staticmethod
         def ground_truth_topic():
             return "/novatel_data/inspvax"
+
 
         @staticmethod
         def _topics_mapping(acquisition: ACQUISITION):
@@ -217,57 +247,55 @@ if _with_rosbag:
 
         def _save_topic(self, data_dict, key, topic, msg, timestamp, frame_index: int = -1, **kwargs):
             if "PointCloud2" in msg._type:
+                if frame_index not in self.frame_idx_to_timestamp:
+                    self.frame_idx_to_timestamp[frame_index] = timestamp.secs * 10e9 + timestamp.nsecs
+                self.frame_idx_to_timestamp[frame_index + 1] = timestamp.secs * 10e9 + timestamp.nsecs
                 data, timestamps = self.decode_pointcloud(msg, timestamp)
                 pc, timestamps, _packet_ids = self.estimate_timestamps(frame_index, data)
+                _, _filter_nan = remove_nan(pc)
+                pc = pc[_filter_nan]
+                timestamps = timestamps[_filter_nan]
+                _packet_ids = _packet_ids[_filter_nan]
+                self.skip_next_frame = False
+                indices = np.argsort(timestamps)
+                timestamps = timestamps[indices]
+                pc = pc[indices]
+                _packet_ids = _packet_ids[indices]
 
                 if self.synchronise_azimuth:
-                    sorted_indices = np.argsort(timestamps)
-                    pc = pc[sorted_indices]
-                    timestamps = timestamps[sorted_indices]
-                    _packet_ids = _packet_ids[sorted_indices]
-
-                    azimuth_bins = (np.arctan2(pc[:, 1], pc[:, 0]) * 180 / np.pi).astype(np.int32)
-                    indices = np.nonzero(azimuth_bins == self.azimuth_bin)[0]
-                    first_id = indices[0]
-                    last_id = indices[-1]
-
-                    first_packet_id = _packet_ids[first_id]
-                    last_packet_id = _packet_ids[last_id]
-
-                    self.use_first_id = len(self.current_frame) > 0 and self.current_frame[0].shape[0] > 30000
-
-                    set_current_frame: bool = True
-                    if last_packet_id <= 1 and len(self.current_frame) == 0:
-                        # No previous saved points : return the full pointcloud
-                        current_frame_filter = np.ones((_packet_ids.shape[0],), dtype=np.bool)
-                        set_current_frame = False
+                    num_remaining_points = 0 if self.current_frame is None else self.current_frame.shape[0]
+                    bins = (np.arctan2(pc[:, 1], pc[:, 0]) / np.pi * 180).astype(np.int32)
+                    _filter_min_points = np.zeros((timestamps.shape[0],), dtype=np.bool)
+                    _filter_min_points[max(20000 - num_remaining_points, 0):] = 1
+                    _filter_azimuth_candidates = (bins == self.azimuth_bin) * _filter_min_points
+                    non_zero = np.nonzero(_filter_azimuth_candidates)
+                    if len(non_zero) == 0 or len(non_zero[0]) == 0:
+                        # No point has azimuth self.azimuth_bin
+                        # This only happens for edge cases
+                        cut_idx = _filter_azimuth_candidates.shape[0] - 1
                     else:
-                        current_frame_filter = _packet_ids <= (
-                            first_packet_id if self.use_first_id else last_packet_id)
+                        cut_idx = np.nonzero(_filter_azimuth_candidates)[0][0]
+                    assert cut_idx is not None
 
-                    self.current_frame.append(pc[current_frame_filter])
-                    self.current_timestamps.append(timestamps[current_frame_filter])
+                    _filter = timestamps <= timestamps[cut_idx]
 
-                    current_frame = np.concatenate(self.current_frame, axis=0)
-                    current_timestamps = np.concatenate(self.current_timestamps, axis=0)
+                    current_frame = pc[_filter]
+                    current_timestamps = timestamps[_filter]
+                    if self.current_frame is not None:
+                        current_frame = np.concatenate([self.current_frame,
+                                                        current_frame], axis=0)
+                        current_timestamps = np.concatenate([self.current_timestamps,
+                                                             current_timestamps])
 
-                    self.current_timestamps.clear()
-                    self.current_frame.clear()
-                    if set_current_frame:
-                        self.current_frame.append(pc[~current_frame_filter])
-                        self.current_timestamps.append(timestamps[~current_frame_filter])
-                        if (self.use_first_id and abs(last_packet_id - first_packet_id) > 50) or \
-                                (last_packet_id <= 1 and self.current_frame[0].shape[0] > 50000):
-                            self.skip_frame = True  # The next frame returned in the remaining points
-
-                    frame_size = current_frame.shape[0]
-                    if frame_size < 3000:
-                        print(f"[ERROR] {frame_size} is small")
-
+                    self.current_timestamps = timestamps[~_filter]
+                    self.current_frame = pc[~_filter]
+                    if find_pc_id_with_azimuth(self.current_frame,
+                                               self.azimuth_bin, 20000) is not None:
+                        # If a full frame has been aggregated, the next frame is skipped
+                        self.skip_next_frame = True
                 else:
                     current_frame = pc
                     current_timestamps = timestamps
-                    self.skip_frame = False
 
                 data_dict[key].append(current_frame)
                 timestamps_key = f"{key}_timestamps"
@@ -286,23 +314,42 @@ if _with_rosbag:
                 latitude = msg.latitude
                 longitude = msg.longitude
                 altitude = msg.altitude
-                llu = np.array([latitude, longitude, altitude])
+                llu = np.array([longitude, latitude, altitude])
                 ypr = np.array([yaw, pitch, roll])
 
                 data_dict[key].append((timestamp.secs * 10e9 + timestamp.nsecs, (llu, ypr)))
             return data_dict
 
+        def ros_pose_timestamp(self, pc_timestamp: float):
+            pc_timestamp_0 = np.floor(pc_timestamp)
+            if pc_timestamp == pc_timestamp_0:
+                return self.frame_idx_to_timestamp[int(pc_timestamp_0)]
+            pc_timestamp_1 = pc_timestamp_0 + 1
+            if pc_timestamp == pc_timestamp_1:
+                return self.frame_idx_to_timestamp[int(pc_timestamp_1)]
+
+            ros_timestamp_0 = self.frame_idx_to_timestamp[pc_timestamp_0]
+            ros_timestamp_1 = self.frame_idx_to_timestamp[pc_timestamp_1]
+
+            theta = (pc_timestamp - pc_timestamp_0) / (pc_timestamp_1 - pc_timestamp_0)
+            ros_timestamp_a = (1 - theta) * ros_timestamp_0 + theta * ros_timestamp_1
+
+            return ros_timestamp_a
+
         def __getitem__(self, index):
-            if self.skip_frame:
+            if self.skip_next_frame:
                 data_dict = dict()
-                data_dict["numpy_pc"] = np.concatenate(self.current_frame, axis=0)
-                data_dict["numpy_pc_timestamps"] = np.concatenate(self.current_timestamps, axis=0)
-                self.current_timestamps.clear()
-                self.current_frame.clear()
-                self.skip_frame = False
+                data_dict["numpy_pc"] = self.current_frame
+                data_dict["numpy_pc_timestamps"] = self.current_timestamps
+                data_dict["ros_timestamp"] = self.ros_pose_timestamp(np.max(self.current_timestamps))
+                self.current_timestamps = None
+                self.current_frame = None
+                self.skip_next_frame = False
+                self._idx += 1
                 return data_dict
 
             data_dict = super().__getitem__(index)
+            data_dict["ros_timestamp"] = self.ros_pose_timestamp(np.max(data_dict["numpy_pc_timestamps"]))
             if self.ground_truth_poses is not None:
                 pose_gt = self.ground_truth_poses[index]
 
@@ -366,6 +413,12 @@ if _with_rosbag:
             "HK-Data20190316-1": UrbanLocoDataset.ACQUISITION.HONG_KONG
         }
 
+
+
+        @classmethod
+        def max_num_workers(cls):
+            return 1
+
         def __init__(self, config: UrbanLocoConfig, **kwargs):
             super().__init__(config)
             self.root_dir = Path(config.root_dir)
@@ -400,6 +453,9 @@ if _with_rosbag:
                 timestamp_0 = None
                 init_enu = None
                 init_llu = None
+
+                poses = None
+                pose_init = None
                 for b_idx, data_dict in tqdm(enumerate(dataset), ncols=100, total=len(dataset), ascii=True):
                     if "odom" in data_dict:
                         poses_data = data_dict["gps_pose"]
@@ -407,9 +463,9 @@ if _with_rosbag:
                             llu, ypr = pose_items
                             timestamps_odom_poses.append(timestamp)
 
-                            longitude = llu[0] * np.pi / 180
-                            latitude = llu[1] * np.pi / 180
-                            altitude = llu[2] * np.pi / 180
+                            longitude = llu[0]
+                            latitude = llu[1]
+                            altitude = llu[2]
                             yaw = ypr[0] * np.pi / 180
                             pitch = ypr[1] * np.pi / 180
                             roll = ypr[2] * np.pi / 180
@@ -437,12 +493,19 @@ if _with_rosbag:
 
                             odom_poses.append(nwu_pose)
 
+                            if pose_init is None:
+                                pose_init = np.linalg.inv(nwu_pose)
+                            new_pose = pose_init.dot(nwu_pose).reshape(1, 4, 4)
+                            poses = new_pose if poses is None else np.concatenate([poses, new_pose], axis=0)
+
                     if "numpy_pc_timestamps" in data_dict:
                         timestamps = data_dict["numpy_pc_timestamps"]
                         timestamp_max = timestamps.max()
                         if timestamp_0 is None:
                             timestamp_0 = timestamp_max
-                        timestamps_pointclouds.append(timestamp_max)
+
+                        timestamp = data_dict["ros_timestamp"]
+                        timestamps_pointclouds.append(timestamp)
 
                 timestamps_pointclouds = np.array(timestamps_pointclouds).reshape(-1)  # [N]
                 timestamps_odom_poses = np.array(timestamps_odom_poses).reshape(-1)  # [N]
@@ -453,6 +516,8 @@ if _with_rosbag:
                 span_lidar_poses = np.einsum("ij,njk->nik", np.linalg.inv(span_lidar_poses[0]), span_lidar_poses)
 
                 poses_filename = str(self.root_dir / self.groundtruth_filename(sequence))
+
+                write_poses_to_disk(str(self.root_dir / "sequence.txt"), odom_poses)
                 write_poses_to_disk(poses_filename, span_lidar_poses)
 
         def rosbag_config(self, sequence_name: str) -> RosbagConfig:
@@ -524,5 +589,6 @@ if _with_rosbag:
                 absolute_poses = read_poses_from_disk(file_path)
                 absolute_poses = np.einsum("ij,njk->nik", np.linalg.inv(absolute_poses[0]), absolute_poses)
                 return compute_relative_poses(absolute_poses) if relative else absolute_poses
-            logging.warning("[URBAN LOCO]The ground truth for sequence was not found.")
+            logging.warning(f"[URBAN LOCO]The ground truth for sequence {sequence_name} was not found.")
+
             return None

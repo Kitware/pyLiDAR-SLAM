@@ -31,7 +31,7 @@ class WindowDataset(Dataset):
     def __init__(self, dataset: Dataset, start: int = 0, length: int = -1):
         self.dataset = dataset
         assert_debug(start < len(dataset))
-        assert_debug(start + length < len(dataset))
+        assert_debug(start + length <= len(dataset))
 
         self.length = length
         self.start = start

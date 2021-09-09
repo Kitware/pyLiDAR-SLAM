@@ -1,15 +1,21 @@
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Tuple
 
+import matplotlib
 import numpy as np
 from pathlib import Path
 import yaml
 import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 
 from slam.common.utils import assert_debug, check_tensor
 from slam.common.io import poses_to_df, delimiter
 
 
-def draw_trajectory_files(xs: list, ys: list, output_file: str, labels: list = None):
+def draw_trajectory_files(xs: list, ys: list,
+                          output_file: str, labels: list = None,
+                          figsize: Optional[Tuple] = None, font_size: int = 20,
+                          palette: Optional[list] = None):
     """
     Draws multiple 2D trajectories in matplotlib plots and saves the plots as png images
 
@@ -23,22 +29,49 @@ def draw_trajectory_files(xs: list, ys: list, output_file: str, labels: list = N
         The output file
     labels : Optional[list]
         An optional list of labels to be displayed in the trajectory
+    figsize : Optional[Tuple]
+    font_size : int
+        The font size of the legend
 
     """
     plt.ioff()
-    fig = plt.figure(figsize=(10., 10.), dpi=100, clear=True)
+    sns.set_theme(style="darkgrid")
+    fig = plt.figure(figsize=figsize if figsize is not None else (10., 10.), dpi=100, clear=True)
 
-    axes = []
+    matplotlib.rcParams.update({'font.size': font_size})
+    plt.rc('font', size=font_size)
+    plt.rc('axes', labelsize=font_size)
+    plt.rc('axes', titlesize=font_size)
+    plt.rc('xtick', labelsize=font_size)
+    plt.rc('ytick', labelsize=font_size)
+    plt.rc('xtick', labelsize=font_size)
+    plt.rc('legend', fontsize=font_size)
+    plt.rc('legend', title_fontsize=font_size)
+
+    _labels = []
+    _xs = []
+    _ys = []
+
     for i, (x, y) in enumerate(zip(xs, ys)):
-        kwargs = {}
-        if labels:
-            kwargs["label"] = labels[i]
-        ax, = plt.plot(x, y, **kwargs)
-        axes.append(ax)
-    if labels:
-        fig.legend(axes, labels)
+        _xs.append(x.reshape(-1, 1))
+        _ys.append(y.reshape(-1, 1))
+        s = pd.Series([i if labels is None else labels[i]]).repeat(x.shape[0])
+        _labels.append(s)
+    _xs = np.concatenate(_xs, axis=0)
+    _ys = np.concatenate(_ys, axis=0)
+    df = pd.DataFrame(np.concatenate([_xs, _ys], axis=1), columns=["x[m]", "y[m]"])
+    _labels = pd.concat(_labels, ignore_index=True)
+    df["Trajectory"] = _labels
 
+    axes = plt.gca()
+    sns.lineplot(x="x[m]", y="y[m]", sort=False, data=df, hue="Trajectory", lw=4,
+                 palette="tab10" if palette is None else palette, axes=axes)
     plt.axis("equal")
+
+    leg = axes.legend()
+    for line in leg.get_lines():
+        line.set_linewidth(4.0)
+
     fig.set_dpi(100)
     plt.savefig(output_file)
     plt.close(fig)

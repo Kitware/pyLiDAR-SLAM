@@ -73,4 +73,9 @@ class OdometryAlgorithm(ABC):
 
     @staticmethod
     def relative_pose_key() -> str:
+        """The key of the expected relative pose filled by the odometry at each frame
+
+        The SLAM algorithm expects a [4, 4] numpy pose transform array under this key
+        In the data_dict after do_process_next_frame is called
+        """
         return "odometry_pose"

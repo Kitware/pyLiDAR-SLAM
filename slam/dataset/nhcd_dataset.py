@@ -71,8 +71,16 @@ class NHCDOdometrySequence(Dataset):
 
         lidar_projector (SphericalProjector): The Spherical Projector, which projects pointclouds in the image plane
         ground_truth_channel (Optional[str]): The key in the dictionary for the ground truth absolute pose
-        with_numpy (bool): Whether to add the numpy pc to the data_dict
     """
+
+    @staticmethod
+    def num_frames(sequence_id: str):
+        if sequence_id == "01_short_experiment":
+            return 15301
+        elif sequence_id == "02_long_experiment":
+            # Remove the last 600 frames which correspond to the arrival of the sensor to the garage
+            # And includes very abrupt, motions
+            return 26000
 
     def __init__(self,
                  sequences_root_dir: str,
@@ -90,7 +98,7 @@ class NHCDOdometrySequence(Dataset):
         self.pcd_paths: Path = self.dataset_root / sequence_id / "raw_format" / "ouster_scan"
         assert_debug(self.pcd_paths.exists(), "The path to the folders of the pcd files does not exist")
         self.file_names = [filename for filename in sorted(os.listdir(str(self.pcd_paths))) if "(1)" not in filename]
-        self._size = len(self.file_names)
+        self._size = self.num_frames(self.sequence_id)
         self.pointcloud_channel = pointcloud_channel
 
         ground_truth_path = self.dataset_root / sequence_id / "ground_truth" / "registered_poses.csv"
@@ -124,7 +132,8 @@ class NHCDOdometrySequence(Dataset):
 
         data_dict = dict()
         pointcloud: o3d.geometry.PointCloud = o3d.io.read_point_cloud(str(file_path), "pcd")
-        xyz = np.asarray(pointcloud.points)
+        xyz = np.asarray(pointcloud.points).copy()
+        del pointcloud
 
         # Read timestamps
         data_dict[self.pointcloud_channel] = xyz.astype(np.float32)
@@ -157,7 +166,7 @@ class NHCDConfig(DatasetConfig):
     lidar_width: int = 1024
     up_fov: int = 25
     down_fov: int = -25
-    train_sequences: list = field(default_factory=lambda: ["02_long_experiment"])
+    train_sequences: list = field(default_factory=lambda: ["02_long_experiment", "01_short_experiment"])
     test_sequences: list = field(default_factory=lambda: ["01_short_experiment"])
     eval_sequences: list = field(default_factory=lambda: ["01_short_experiment"])
 
@@ -195,7 +204,6 @@ class NHCDDatasetLoader(DatasetLoader):
         poses_file = self.root_dir / sequence_name / "ground_truth" / "registered_poses.csv"
         if not poses_file.exists():
             return None
-
         poses, poses_timestamps = read_ground_truth(str(poses_file))
         scans_dir = self.root_dir / sequence_name / "raw_format" / "ouster_scan"
         if not scans_dir.exists():
@@ -205,6 +213,7 @@ class NHCDDatasetLoader(DatasetLoader):
             return None
 
         absolute_poses = pointcloud_poses(poses, poses_timestamps, sorted(os.listdir(str(scans_dir))))
+        absolute_poses = absolute_poses[:NHCDOdometrySequence.num_frames(sequence_name)]
         return compute_relative_poses(absolute_poses)
 
     def sequences(self):

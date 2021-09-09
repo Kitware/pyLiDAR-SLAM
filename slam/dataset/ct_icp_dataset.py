@@ -86,7 +86,7 @@ if _with_ct_icp:
         eval_sequences: list = field(default_factory=lambda: ["09", "10"])
 
 
-    # Hydra -- stores a KITTIConfig `ct_icp` in the `dataset` group
+    # Hydra -- stores a CT_ICPDatasetConfig `ct_icp` in the `dataset` group
     cs = ConfigStore.instance()
     cs.store(group="dataset", name="ct_icp", node=CT_ICPDatasetConfig)
 
@@ -170,8 +170,10 @@ if _with_ct_icp:
             # Build the dictionary sequence_name -> sequence_id
             self.map_seqname_seqid = dict()
             all_sequences_id_size = pct.get_sequences(self.options)
-            for seq_id, seq_size in all_sequences_id_size:
-                seq_name = pct.sequence_name(self.options, seq_id)
+            for seq_info in all_sequences_id_size:
+                seq_id = seq_info.sequence_id
+                seq_size = seq_info.sequence_size
+                seq_name = seq_info.sequence_name
                 assert_debug(seq_name in self.__KITTI_SEQUENCE or seq_name in self.__KITTI_CARLA_SEQUENCE)
                 self.map_seqname_seqid[seq_name] = seq_id
 
@@ -216,8 +218,8 @@ if _with_ct_icp:
             eval_sequence_ids = self.config.eval_sequences
             test_sequence_ids = self.config.test_sequences
 
-            list_seqid_seqsize = pct.get_sequences(self.options)
-            seqname_to_seqid = {pct.sequence_name(self.options, seq_id): seq_id for seq_id, _ in list_seqid_seqsize}
+            list_seq_info = pct.get_sequences(self.options)
+            seqname_to_seqid = {seq_info.sequence_name: seq_info.sequence_id for seq_info in list_seq_info}
 
             _options = self.options
 

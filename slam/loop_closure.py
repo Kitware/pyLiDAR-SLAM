@@ -11,7 +11,7 @@ from hydra.conf import dataclass, MISSING, ConfigStore, field
 from omegaconf import DictConfig, OmegaConf
 
 # Project Imports
-from slam.backend.backend import Backend
+from slam.backend import Backend
 from slam.common.modules import _with_cv2, _with_o3d
 from slam.common.pointcloud import grid_sample
 from slam.common.pose import transform_pointcloud

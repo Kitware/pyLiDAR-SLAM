@@ -176,8 +176,7 @@ class KITTI360Sequence(Dataset):
         data_dict = {}
 
         xyz_r = kitti_read_scan(str(self.lidar_path / f"{idx:010}.bin"))
-        data_dict["numpy_pc"] = self._correct_scan(xyz_r[:, :3])  # xyz_r[:, :3]
-
+        data_dict["numpy_pc"] = KITTIOdometrySequence.correct_scan(xyz_r[:, :3])
         data_dict["numpy_reflectance"] = xyz_r[:, 3:]
         data_dict["numpy_pc_timestamps"] = estimate_timestamps(xyz_r[:, :3], phi_0=np.pi, clockwise=True)
         if self.gt_poses is not None:

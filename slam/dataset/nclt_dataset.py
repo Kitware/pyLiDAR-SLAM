@@ -43,7 +43,7 @@ class NCLTSequenceDataset(Dataset):
     def __init__(self, root_dir: str, sequence_id: str, vertex_map_key: str, projector: SphericalProjector):
         super().__init__()
         self.sequence_dir = Path(root_dir) / sequence_id
-        assert_debug(self.sequence_dir.exists())
+        assert_debug(self.sequence_dir.exists(), f"The directory {self.sequence_dir} does not exist on disk")
 
         # Prepare Velodyne files
         self.velodyne_dir = self.sequence_dir / "velodyne_sync"

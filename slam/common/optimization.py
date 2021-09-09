@@ -320,6 +320,11 @@ class GaussNewton(LeastSquare):
         for _ in range(num_iters):
             J: torch.Tensor = jac_fun(x.detach())
             res: torch.Tensor = res_fun(x)
+            norm_res = res.norm()
+            if norm_res < 1.e-7:
+                logging.warning("The residual norm is lower than threshold 1e-7. "
+                                "This would lead to invalid jacobian. We prefer Stopping ICP")
+                return x, res * res
             weights: torch.Tensor = self._ls_scheme.weights(res.detach(), **kwargs)
             res *= weights
             J *= weights.unsqueeze(-1)
