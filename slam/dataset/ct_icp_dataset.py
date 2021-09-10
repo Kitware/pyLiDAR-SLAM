@@ -206,7 +206,7 @@ if _with_ct_icp:
         @staticmethod
         def have_sequence(seq_name):
             return seq_name == "PLY_DIR" or seq_name in CT_ICPDatasetLoader.__KITTI_SEQUENCE or \
-                   seq_name in CT_ICPDatasetLoader.__KITTI_CARLA_SEQUENCE or seq_name == "_vel"
+                   seq_name in CT_ICPDatasetLoader.__KITTI_CARLA_SEQUENCE or "_vel" in seq_name
 
         def __init__(self, config: CT_ICPDatasetConfig):
             super().__init__(config)
@@ -223,11 +223,11 @@ if _with_ct_icp:
                 seq_size = seq_info.sequence_size
                 seq_name = seq_info.sequence_name
 
-            assert_debug(
-                self.have_sequence(seq_name) in self.__KITTI_SEQUENCE or seq_name in self.__KITTI_CARLA_SEQUENCE
-                or "_vel" in seq_name or "PLY" in seq_name)
+                assert_debug(
+                    self.have_sequence(seq_name) in self.__KITTI_SEQUENCE or seq_name in self.__KITTI_CARLA_SEQUENCE
+                    or "_vel" in seq_name or "PLY" in seq_name)
 
-            self.map_seqname_seqid[seq_name] = seq_id
+                self.map_seqname_seqid[seq_name] = seq_id
 
         def projector(self) -> SphericalProjector:
             """Default SphericalProjetor for KITTI (projection of a pointcloud into a Vertex Map)"""
