@@ -9,7 +9,7 @@ if _with_ct_icp:
     from pathlib import Path
 
     import numpy as np
-    from torch.utils.data import Dataset
+    from torch.utils.data import Dataset, IterableDataset
 
     # Hydra and OmegaConf
     from hydra.conf import dataclass, field
@@ -91,7 +91,7 @@ if _with_ct_icp:
     cs.store(group="dataset", name="ct_icp", node=CT_ICPDatasetConfig)
 
 
-    class CT_ICPDatasetSequence(Dataset):
+    class CT_ICPDatasetSequence:
         """
         Dataset for a Sequence defined in CT_ICP Datasets
         See https://github.com/jedeschaud/ct_icp for more details
@@ -109,7 +109,7 @@ if _with_ct_icp:
             assert isinstance(options, pct.DatasetOptions) or isinstance(options, CT_ICPDatasetOptionsWrapper)
             self.options: pct.DatasetOptions = options if isinstance(options,
                                                                      pct.DatasetOptions) else options.to_pct_object()
-            assert_debug(self.options.dataset != pct.NCLT, "The NCLT Dataset is not available in Random Access")
+            # assert_debug(self.options.dataset != pct.NCLT, "The NCLT Dataset is not available in Random Access")
             self.dataset_sequences = pct.get_dataset_sequence(self.options, sequence_id)
             self.sequence_id = sequence_id
             self.gt = None
@@ -124,13 +124,7 @@ if _with_ct_icp:
             return CT_ICPDatasetSequence, (CT_ICPDatasetOptionsWrapper.build_from_pct(self.options), self.sequence_id,
                                            self.gt_pose_channel, self.numpy_pc_channel)
 
-        def __len__(self):
-            return self.dataset_sequences.NumFrames()
-
-        def __getitem__(self, idx) -> dict:
-            assert_debug(0 <= idx < len(self), "Index Error")
-
-            lidar_frame = self.dataset_sequences.Frame(idx)
+        def process_frame(self, lidar_frame: pct.LiDARFrame):
             data_dict = dict()
 
             # Add numpy pc values
@@ -147,6 +141,43 @@ if _with_ct_icp:
             return data_dict
 
 
+    class IterableCT_ICPDataset(CT_ICPDatasetSequence, IterableDataset):
+        def __init__(self,
+                     options: Union[pct.DatasetOptions, CT_ICPDatasetOptionsWrapper],
+                     sequence_id: int,
+                     gt_pose_channel: str = "absolute_pose_gt",
+                     numpy_pc_channel: str = "numpy_pc"):
+            super().__init__(options, sequence_id, gt_pose_channel, numpy_pc_channel)
+
+            assert isinstance(options, pct.DatasetOptions) or isinstance(options, CT_ICPDatasetOptionsWrapper)
+            self._idx = 0
+
+        def __len__(self):
+            return 10000
+
+        def __iter__(self):
+            if self._idx > 0:
+                assert_debug("Error, cannot iter twice over IterableDataset")
+            return self
+
+        def __next__(self):
+            if not self.dataset_sequences.HasNext():
+                raise StopIteration
+            lidar_frame = self.dataset_sequences.Next()
+            return super().process_frame(lidar_frame)
+
+
+    class TorchCT_ICPDataset(CT_ICPDatasetSequence, Dataset):
+
+        def __getitem__(self, idx):
+            assert_debug(0 <= idx < len(self), "Index Error")
+            lidar_frame = self.dataset_sequences.Frame(idx)
+            return super().process_frame(lidar_frame)
+
+        def __len__(self):
+            return self.dataset_sequences.NumFrames()
+
+
     class CT_ICPDatasetLoader(DatasetLoader):
         """
         Configuration for a dataset proposed in CT_ICP
@@ -156,8 +187,24 @@ if _with_ct_icp:
         __KITTI_CARLA_SEQUENCE = [f"Town{1 + i:02}" for i in range(7)]
 
         @staticmethod
+        def sequence_to_dataset(seq_name):
+            if "_vel" in seq_name:
+                return pct.NCLT
+            if seq_name in CT_ICPDatasetLoader.__KITTI_CARLA_SEQUENCE:
+                return pct.KITTI_CARLA
+            if seq_name in CT_ICPDatasetLoader.__KITTI_SEQUENCE:
+                return pct.KITTI_raw
+            else:
+                assert_debug(False, f"Sequence name {seq_name} does not match expected datasets")
+
+        @staticmethod
+        def is_iterable_dataset(dataset: pct.CT_ICP_DATASET):
+            return dataset == pct.NCLT
+
+        @staticmethod
         def have_sequence(seq_name):
-            return seq_name in CT_ICPDatasetLoader.__KITTI_SEQUENCE or \
+            return "_vel" in seq_name or \
+                   seq_name in CT_ICPDatasetLoader.__KITTI_SEQUENCE or \
                    seq_name in CT_ICPDatasetLoader.__KITTI_CARLA_SEQUENCE
 
         def __init__(self, config: CT_ICPDatasetConfig):
@@ -174,7 +221,9 @@ if _with_ct_icp:
                 seq_id = seq_info.sequence_id
                 seq_size = seq_info.sequence_size
                 seq_name = seq_info.sequence_name
-                assert_debug(seq_name in self.__KITTI_SEQUENCE or seq_name in self.__KITTI_CARLA_SEQUENCE)
+                assert_debug(seq_name in self.__KITTI_SEQUENCE or
+                             seq_name in self.__KITTI_CARLA_SEQUENCE or
+                             "_vel" in seq_name)
                 self.map_seqname_seqid[seq_name] = seq_id
 
         def projector(self) -> SphericalProjector:
@@ -192,6 +241,10 @@ if _with_ct_icp:
             """Returns the ground truth poses associated to a sequence of KITTI's odometry benchmark"""
             assert_debug(sequence_name in self.map_seqname_seqid)
             seq_id = self.map_seqname_seqid[sequence_name]
+
+            if self.sequence_to_dataset(sequence_name) == pct.NCLT:
+                return None
+
             ground_truth = pct.load_sensor_ground_truth(self.options, seq_id)
             absolute_poses = np.array(ground_truth).astype(np.float64)
             return compute_relative_poses(absolute_poses)
@@ -235,7 +288,9 @@ if _with_ct_icp:
                             f"The dataset located at {_options.root_path} does not have the sequence named {seq_name}")
                         continue
                     seq_id = seqname_to_seqid[seq_name]
-                    datasets.append(CT_ICPDatasetSequence(_options, seq_id))
+                    datasets.append(
+                        TorchCT_ICPDataset(_options, seq_id) if not self.is_iterable_dataset(_options.dataset)
+                        else IterableCT_ICPDataset(_options, seq_id))
                     sequence_names.append(seq_name)
 
                 return datasets, sequence_names

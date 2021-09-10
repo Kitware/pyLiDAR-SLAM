@@ -156,6 +156,8 @@ class Distortion(Filter):
         check_tensor(pc, [-1, 3])
 
         no_distortion = not self.config.activate or (self.config.timestamps_key not in data_dict)
+        no_distortion = no_distortion or (data_dict[self.config.pose_key] is None
+                                          if self.config.pose_key in data_dict else False)
         if no_distortion:
             data_dict[self.config.output_key] = pc
             return
