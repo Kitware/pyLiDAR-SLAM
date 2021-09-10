@@ -157,8 +157,8 @@ if _with_ct_icp:
 
         @staticmethod
         def have_sequence(seq_name):
-            return seq_name in CT_ICPDatasetLoader.__KITTI_SEQUENCE or \
-                   seq_name in CT_ICPDatasetLoader.__KITTI_CARLA_SEQUENCE
+            return seq_name == "PLY_DIR" or seq_name in CT_ICPDatasetLoader.__KITTI_SEQUENCE or \
+                   seq_name in CT_ICPDatasetLoader.__KITTI_CARLA_SEQUENCE or seq_name == "_vel"
 
         def __init__(self, config: CT_ICPDatasetConfig):
             super().__init__(config)
@@ -174,7 +174,8 @@ if _with_ct_icp:
                 seq_id = seq_info.sequence_id
                 seq_size = seq_info.sequence_size
                 seq_name = seq_info.sequence_name
-                assert_debug(seq_name in self.__KITTI_SEQUENCE or seq_name in self.__KITTI_CARLA_SEQUENCE)
+                assert_debug(seq_name in self.__KITTI_SEQUENCE or seq_name in self.__KITTI_CARLA_SEQUENCE
+                             or "_vel" in seq_name or "PLY" in seq_name)
                 self.map_seqname_seqid[seq_name] = seq_id
 
         def projector(self) -> SphericalProjector:
@@ -192,9 +193,12 @@ if _with_ct_icp:
             """Returns the ground truth poses associated to a sequence of KITTI's odometry benchmark"""
             assert_debug(sequence_name in self.map_seqname_seqid)
             seq_id = self.map_seqname_seqid[sequence_name]
-            ground_truth = pct.load_sensor_ground_truth(self.options, seq_id)
-            absolute_poses = np.array(ground_truth).astype(np.float64)
-            return compute_relative_poses(absolute_poses)
+            if pct.has_ground_truth(self.options, seq_id):
+                ground_truth = pct.load_sensor_ground_truth(self.options, seq_id)
+                absolute_poses = np.array(ground_truth).astype(np.float64)
+                return compute_relative_poses(absolute_poses)
+            else:
+                return None
 
         def sequences(self):
             """

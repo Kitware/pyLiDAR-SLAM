@@ -177,7 +177,9 @@ class Distortion(Filter):
 
         slerp = Slerp(key_times, rot_times)
 
-        alpha_timestamps = (timestamps - np.min(timestamps)) / (np.max(timestamps) - np.min(timestamps))
+        diff = np.max(timestamps) - np.min(timestamps)
+        alpha_timestamps = timestamps * 0 if diff == 0.0 else (timestamps - np.min(timestamps)) / (
+                    np.max(timestamps) - np.min(timestamps))
         alpha_timestamps.reshape(-1)
         interpolated_rots: R = slerp(alpha_timestamps).as_matrix()
 
