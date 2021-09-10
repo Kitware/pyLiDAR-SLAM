@@ -34,6 +34,7 @@ def draw_trajectory_files(xs: list, ys: list,
         The font size of the legend
 
     """
+    plt.ioff()
     sns.set_theme(style="darkgrid")
     fig = plt.figure(figsize=figsize if figsize is not None else (10., 10.), dpi=100, clear=True)
 
