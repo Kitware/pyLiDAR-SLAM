@@ -208,99 +208,96 @@ if _with_ct_icp:
             return seq_name == "PLY_DIR" or seq_name in CT_ICPDatasetLoader.__KITTI_SEQUENCE or \
                    seq_name in CT_ICPDatasetLoader.__KITTI_CARLA_SEQUENCE or seq_name == "_vel"
 
+        def __init__(self, config: CT_ICPDatasetConfig):
+            super().__init__(config)
+            self.options: CT_ICPDatasetOptionsWrapper = CT_ICPDatasetOptionsWrapper(**config.options).to_pct_object()
 
-    def __init__(self, config: CT_ICPDatasetConfig):
-        super().__init__(config)
-        self.options: CT_ICPDatasetOptionsWrapper = CT_ICPDatasetOptionsWrapper(**config.options).to_pct_object()
+            root_path = Path(self.options.root_path)
+            assert_debug(root_path.exists(), f"The root path of the dataset {str(root_path)} does not exist on disk")
 
-        root_path = Path(self.options.root_path)
-        assert_debug(root_path.exists(), f"The root path of the dataset {str(root_path)} does not exist on disk")
+            # Build the dictionary sequence_name -> sequence_id
+            self.map_seqname_seqid = dict()
+            all_sequences_id_size = pct.get_sequences(self.options)
+            for seq_info in all_sequences_id_size:
+                seq_id = seq_info.sequence_id
+                seq_size = seq_info.sequence_size
+                seq_name = seq_info.sequence_name
 
-        # Build the dictionary sequence_name -> sequence_id
-        self.map_seqname_seqid = dict()
-        all_sequences_id_size = pct.get_sequences(self.options)
-        for seq_info in all_sequences_id_size:
-            seq_id = seq_info.sequence_id
-            seq_size = seq_info.sequence_size
-            seq_name = seq_info.sequence_name
+            assert_debug(
+                self.have_sequence(seq_name) in self.__KITTI_SEQUENCE or seq_name in self.__KITTI_CARLA_SEQUENCE
+                or "_vel" in seq_name or "PLY" in seq_name)
 
-        assert_debug(self.have_sequence(seq_name) in self.__KITTI_SEQUENCE or seq_name in self.__KITTI_CARLA_SEQUENCE
-                     or "_vel" in seq_name or "PLY" in seq_name)
+            self.map_seqname_seqid[seq_name] = seq_id
 
-        self.map_seqname_seqid[seq_name] = seq_id
+        def projector(self) -> SphericalProjector:
+            """Default SphericalProjetor for KITTI (projection of a pointcloud into a Vertex Map)"""
+            assert isinstance(self.config, CT_ICPDatasetConfig)
+            lidar_height = self.config.lidar_height
+            lidar_with = self.config.lidar_width
+            up_fov = self.config.up_fov
+            down_fov = self.config.down_fov
+            # Vertex map projector
+            projector = SphericalProjector(lidar_height, lidar_with, 3, up_fov, down_fov)
+            return projector
 
+        def get_ground_truth(self, sequence_name):
+            """Returns the ground truth poses associated to a sequence of KITTI's odometry benchmark"""
+            assert_debug(sequence_name in self.map_seqname_seqid)
+            seq_id = self.map_seqname_seqid[sequence_name]
 
-    def projector(self) -> SphericalProjector:
-        """Default SphericalProjetor for KITTI (projection of a pointcloud into a Vertex Map)"""
-        assert isinstance(self.config, CT_ICPDatasetConfig)
-        lidar_height = self.config.lidar_height
-        lidar_with = self.config.lidar_width
-        up_fov = self.config.up_fov
-        down_fov = self.config.down_fov
-        # Vertex map projector
-        projector = SphericalProjector(lidar_height, lidar_with, 3, up_fov, down_fov)
-        return projector
-
-
-    def get_ground_truth(self, sequence_name):
-        """Returns the ground truth poses associated to a sequence of KITTI's odometry benchmark"""
-        assert_debug(sequence_name in self.map_seqname_seqid)
-        seq_id = self.map_seqname_seqid[sequence_name]
-
-        if pct.has_ground_truth(self.options, seq_id):
-            ground_truth = pct.load_sensor_ground_truth(self.options, seq_id)
-            absolute_poses = np.array(ground_truth).astype(np.float64)
-            return compute_relative_poses(absolute_poses)
-        else:
-            return None
-
-
-    def sequences(self):
-        """
-        Returns
-        -------
-        (train_dataset, eval_dataset, test_dataset, transform) : tuple
-        train_dataset : (list, list)
-            A list of dataset_config (one for each sequence of KITTI's Dataset),
-            And the list of sequences used to build them
-        eval_dataset : (list, list)
-            idem
-        test_dataset : (list, list)
-            idem
-        transform : callable
-            A transform to be applied on the dataset_config
-        """
-        assert isinstance(self.config, CT_ICPDatasetConfig)
-
-        # Sets the path of the kitti benchmark
-        train_sequence_ids = self.config.train_sequences
-        eval_sequence_ids = self.config.eval_sequences
-        test_sequence_ids = self.config.test_sequences
-
-        list_seq_info = pct.get_sequences(self.options)
-        seqname_to_seqid = {seq_info.sequence_name: seq_info.sequence_id for seq_info in list_seq_info}
-
-        _options = self.options
-
-        def __get_datasets(sequences: list):
-            if sequences is None or len(sequences) == 0:
+            if pct.has_ground_truth(self.options, seq_id):
+                ground_truth = pct.load_sensor_ground_truth(self.options, seq_id)
+                absolute_poses = np.array(ground_truth).astype(np.float64)
+                return compute_relative_poses(absolute_poses)
+            else:
                 return None
 
-            datasets = []
-            sequence_names = []
-            for seq_name in sequences:
-                if not self.have_sequence(seq_name) or seq_name not in seqname_to_seqid:
-                    logging.warning(
-                        f"The dataset located at {_options.root_path} does not have the sequence named {seq_name}")
-                    continue
-                seq_id = seqname_to_seqid[seq_name]
-                datasets.append(
-                    TorchCT_ICPDataset(_options, seq_id) if not self.is_iterable_dataset(_options.dataset)
-                    else IterableCT_ICPDataset(_options, seq_id))
-                sequence_names.append(seq_name)
+        def sequences(self):
+            """
+            Returns
+            -------
+            (train_dataset, eval_dataset, test_dataset, transform) : tuple
+            train_dataset : (list, list)
+                A list of dataset_config (one for each sequence of KITTI's Dataset),
+                And the list of sequences used to build them
+            eval_dataset : (list, list)
+                idem
+            test_dataset : (list, list)
+                idem
+            transform : callable
+                A transform to be applied on the dataset_config
+            """
+            assert isinstance(self.config, CT_ICPDatasetConfig)
 
-            return datasets, sequence_names
+            # Sets the path of the kitti benchmark
+            train_sequence_ids = self.config.train_sequences
+            eval_sequence_ids = self.config.eval_sequences
+            test_sequence_ids = self.config.test_sequences
 
-        return __get_datasets(train_sequence_ids), \
-               __get_datasets(eval_sequence_ids), \
-               __get_datasets(test_sequence_ids), lambda x: x
+            list_seq_info = pct.get_sequences(self.options)
+            seqname_to_seqid = {seq_info.sequence_name: seq_info.sequence_id for seq_info in list_seq_info}
+
+            _options = self.options
+
+            def __get_datasets(sequences: list):
+                if sequences is None or len(sequences) == 0:
+                    return None
+
+                datasets = []
+                sequence_names = []
+                for seq_name in sequences:
+                    if not self.have_sequence(seq_name) or seq_name not in seqname_to_seqid:
+                        logging.warning(
+                            f"The dataset located at {_options.root_path} does not have the sequence named {seq_name}")
+                        continue
+                    seq_id = seqname_to_seqid[seq_name]
+                    datasets.append(
+                        TorchCT_ICPDataset(_options, seq_id) if not self.is_iterable_dataset(_options.dataset)
+                        else IterableCT_ICPDataset(_options, seq_id))
+                    sequence_names.append(seq_name)
+
+                return datasets, sequence_names
+
+            return __get_datasets(train_sequence_ids), \
+                   __get_datasets(eval_sequence_ids), \
+                   __get_datasets(test_sequence_ids), lambda x: x
