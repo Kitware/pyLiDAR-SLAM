@@ -48,31 +48,21 @@ def draw_trajectory_files(xs: list, ys: list,
     plt.rc('legend', fontsize=font_size)
     plt.rc('legend', title_fontsize=font_size)
 
-    _labels = []
-    _xs = []
-    _ys = []
-
-    for i, (x, y) in enumerate(zip(xs, ys)):
-        _xs.append(x.reshape(-1, 1))
-        _ys.append(y.reshape(-1, 1))
-        s = pd.Series([i if labels is None else labels[i]]).repeat(x.shape[0])
-        _labels.append(s)
-    _xs = np.concatenate(_xs, axis=0)
-    _ys = np.concatenate(_ys, axis=0)
-    df = pd.DataFrame(np.concatenate([_xs, _ys], axis=1), columns=["x[m]", "y[m]"])
-    _labels = pd.concat(_labels, ignore_index=True)
-    df["Trajectory"] = _labels
-
     axes = plt.gca()
-    sns.lineplot(x="x[m]", y="y[m]", data=df, hue="Trajectory", lw=3, sort=False,
-                    palette="tab10" if palette is None else palette, axes=axes)
-    plt.axis("equal")
+
+    color_palette = sns.color_palette(palette="tab10" if palette is None else palette, n_colors=len(xs), as_cmap=True)
+    for i, (x, y) in enumerate(zip(xs, ys)):
+        axes.plot(x, y, linewidth=4, label=labels[i], color=color_palette[i])
+
+    axes.set_xlabel("X[m]")
+    axes.set_ylabel("Y[m]")
 
     leg = axes.legend(loc="lower left")
     for line in leg.get_lines():
         line.set_linewidth(4.0)
 
-    fig.set_dpi(300)
+    plt.axis("equal")
+    fig.set_dpi(100)
     plt.savefig(output_file)
     plt.close(fig)
 
