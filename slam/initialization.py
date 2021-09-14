@@ -1,17 +1,17 @@
 from abc import ABC, abstractmethod
+from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional, Any
 import numpy as np
 
 # Hydra and omegaconf
 from hydra.core.config_store import ConfigStore
-from omegaconf import DictConfig, MISSING
+from omegaconf import DictConfig, MISSING, OmegaConf
 from hydra.conf import field, dataclass
 
 # Project imports
 from slam.common.pose import Pose
 from slam.common.timer import *
-from slam.odometry import *
 from slam.common.modules import _with_cv2
 from slam.common.utils import assert_debug, ObjectLoaderEnum
 from slam.training.prediction_modules import _PoseNetPredictionModule
