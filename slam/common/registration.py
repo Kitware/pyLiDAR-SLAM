@@ -28,7 +28,7 @@ def weighted_procrustes(pc_target: TensorType,
         check_tensor(pc_target, [-1, 3])
         check_tensor(pc_reference, [*pc_target.shape])
         if weights is None:
-            weights = np.ones(pc_target.shape[0], 1, dtype=pc_target.dtype)
+            weights = np.ones((pc_target.shape[0], 1), dtype=pc_target.dtype)
         avg_weights = weights / weights.sum(axis=0)
 
     mu_tgt = (pc_target * avg_weights).sum(**(dict(dim=1) if is_torch else dict(axis=0)))
@@ -189,6 +189,7 @@ if _with_cv2:
             self.z_max: float = self.config.get("z_max", 5)
             self.sigma: float = self.config.get("sigma", 0.1)
             color_map: str = self.config.get("color_map", "jet")
+            self.flip_axis: bool = self.config.get("flip_z_axis", False)
             from matplotlib import cm
             self.color_map = cm.get_cmap(color_map)
 
@@ -208,7 +209,7 @@ if _with_cv2:
             pc_z = pc_z[_filter]
             pc_z = np.clip(pc_z, self.z_min, self.z_max)
 
-            indices = np.argsort(pc_z)[::-1]
+            indices = np.argsort(pc_z)[::(1 if self.flip_axis else -1)]
 
             pc_z = pc_z[indices]
             pc_x = pc_x[indices]

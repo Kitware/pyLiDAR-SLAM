@@ -172,13 +172,13 @@ def remove_nan(tensor: Union[torch.Tensor, np.ndarray]):
     assert_debug(ndims <= 2)
 
     if isinstance(tensor, torch.Tensor):
-        _filter = torch.isnan(tensor)
+        _filter = ~torch.isnan(tensor)
         if ndims == 2:
-            _filter = ~torch.any(_filter, dim=1)
+            _filter = torch.all(_filter, dim=1)
     elif isinstance(tensor, np.ndarray):
-        _filter = np.isnan(tensor)
+        _filter = ~np.isnan(tensor)
         if ndims == 2:
-            _filter = ~np.any(_filter, axis=1)
+            _filter = np.all(_filter, axis=1)
     else:
         raise NotImplementedError("The tensor shape does not exist")
 

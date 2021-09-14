@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from typing import Tuple, List, Optional
@@ -15,8 +16,9 @@ from omegaconf import MISSING
 from hydra.conf import field, dataclass
 
 # Project Imports
+from slam.common.pose import PosesInterpolator
 from slam.common.projection import SphericalProjector
-from slam.common.utils import assert_debug
+from slam.common.utils import assert_debug, remove_nan
 from slam.dataset import DatasetLoader, DatasetConfig
 
 
@@ -38,6 +40,10 @@ class NCLTSequenceDataset(Dataset):
     A Torch Dataset for a sequence of the NCLT Dataset
 
     see http://robots.engin.umich.edu/nclt for the link to the Dataset's main page
+
+    TODO:
+        - Use the velodyne_hits.bin file (much better data)
+        - Allow the expression of the data in the different reference frames (body, velodyne, velodyne_inverted)
     """
 
     def __init__(self, root_dir: str, sequence_id: str, vertex_map_key: str, projector: SphericalProjector):
@@ -75,7 +81,7 @@ class NCLTSequenceDataset(Dataset):
 
         gt = None
         if ground_truth_file.exists():
-            ground_truth = NCLTSequenceDataset.__ground_truth(str(ground_truth_file))
+            ground_truth = NCLTSequenceDataset.read_ground_truth(str(ground_truth_file))
 
             # Ground truth timestamps and LiDARs don't match, interpolate
             gt_t = ground_truth[:, 0]
@@ -109,9 +115,64 @@ class NCLTSequenceDataset(Dataset):
         return timestamps, velodyne_files, gt
 
     @staticmethod
-    def __ground_truth(gt_file: str):
+    def read_ground_truth(gt_file: str):
         gt = pd.read_csv(gt_file, sep=",").values
         return gt
+
+    @staticmethod
+    def interpolate_ground_truth(ground_truth: np.ndarray,
+                                 timestamps: np.ndarray,
+                                 reference_frame: Optional[str] = None):
+        """Interpolates the poses from the ground truth using the provided timestamps
+
+        Parameters:
+            ground_truth (np.ndarray): The ground truth data as provided by `read_ground_truth` `(-1, 7)`
+            timestamps (np.ndarray): The point cloud poses
+            reference_frame (str): The frame of reference to which the data should return
+                                   In the "imu" frame (provided by the dataset),
+                                   In the "velodyne" frame of the LiDAR sensor
+                                   In the "velodyne_inverted" modifying the velodyne frame to have the z axis point up
+        """
+        if reference_frame is None:
+            reference_frame = "velodyne_inverted"
+        assert_debug(reference_frame in ["body", "velodyne", "velodyne_inverted"])
+        gt_t = ground_truth[:, 0]
+        gt_t, _filter = remove_nan(gt_t)
+        gt = ground_truth[:, 1:][_filter]
+        t_min = np.min(gt_t)
+        t_max = np.max(gt_t)
+        gt_tr = gt[:, :3]
+        gt_euler = gt[:, 3:][:, [2, 1, 0]]
+        gt_rot = Rotation.from_euler("ZYX", gt_euler).as_matrix()
+
+        gt = np.eye(4, dtype=np.float32).reshape(1, 4, 4).repeat(gt.shape[0], axis=0)
+        gt[:, :3, :3] = gt_rot
+        gt[:, :3, 3] = gt_tr
+
+        if reference_frame == "velodyne_inverted":
+            gt = np.einsum("nij,jk->nik", gt, np.array([[1.0, 0.0, 0.0, 0.0],
+                                                        [0.0, -1.0, 0.0, 0.0],
+                                                        [0.0, 0.0, -1.0, 0.0],
+                                                        [0.0, 0.0, 0.0, 1.0]], dtype=np.float32))
+            gt = np.einsum("ij,njk->nik", np.array([[1.0, 0.0, 0.0, 0.0],
+                                                    [0.0, -1.0, 0.0, 0.0],
+                                                    [0.0, 0.0, -1.0, 0.0],
+                                                    [0.0, 0.0, 0.0, 1.0]], dtype=np.float32), gt)
+        if reference_frame == "velodyne":
+             gt = np.einsum("nij,jk->nik", gt, np.array([[0.0, 1.0, 0.0, 0.0],
+                                                         [-1.0, 0.0, 0.0, 0.0],
+                                                         [0.0, 0.0, 1.0, 0.0],
+                                                         [0.0, 0.0, 0.0, 1.0]], dtype=np.float32))
+             gt = np.einsum("ij,njk->nik", np.array([[0.0, -1.0, 0.0, 0.0],
+                                                    [1.0, 0.0, 0.0, 0.0],
+                                                    [0.0, 0.0, 1.0, 0.0],
+                                                    [0.0, 0.0, 0.0, 1.0]], dtype=np.float32), gt)
+        interpolator = PosesInterpolator(gt, gt_t)
+        if timestamps.min() < t_min or timestamps.max() > timestamps.max():
+            logging.info("[NCLT] Found timestamps outside of the window of ground truth poses. "
+                         "Timestamps will be clipped to the match the window.")
+            timestamps = timestamps.clip(min=t_min, max=t_max)
+        return interpolator(timestamps)
 
     def __len__(self):
         return self._size

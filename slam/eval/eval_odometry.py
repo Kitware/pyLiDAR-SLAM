@@ -36,7 +36,7 @@ def draw_trajectory_files(xs: list, ys: list,
     """
     plt.ioff()
     sns.set_theme(style="darkgrid")
-    fig = plt.figure(figsize=figsize if figsize is not None else (10., 10.), dpi=100, clear=True)
+    fig = plt.figure(figsize=figsize if figsize is not None else (10., 10.), dpi=1000, clear=True)
 
     matplotlib.rcParams.update({'font.size': font_size})
     plt.rc('font', size=font_size)
@@ -64,15 +64,15 @@ def draw_trajectory_files(xs: list, ys: list,
     df["Trajectory"] = _labels
 
     axes = plt.gca()
-    sns.lineplot(x="x[m]", y="y[m]", sort=False, data=df, hue="Trajectory", lw=4,
-                 palette="tab10" if palette is None else palette, axes=axes)
+    sns.lineplot(x="x[m]", y="y[m]", data=df, hue="Trajectory", lw=3, sort=False,
+                    palette="tab10" if palette is None else palette, axes=axes)
     plt.axis("equal")
 
-    leg = axes.legend()
+    leg = axes.legend(loc="lower left")
     for line in leg.get_lines():
         line.set_linewidth(4.0)
 
-    fig.set_dpi(100)
+    fig.set_dpi(300)
     plt.savefig(output_file)
     plt.close(fig)
 
@@ -179,8 +179,8 @@ def calcSequenceErrors(trajectory, ground_truth, all_segments=__default_segments
     return errors
 
 
-def compute_kitti_metrics(trajectory, ground_truth) -> tuple:
-    errors = calcSequenceErrors(trajectory, ground_truth)
+def compute_kitti_metrics(trajectory, ground_truth, segments_sizes=__default_segments) -> tuple:
+    errors = calcSequenceErrors(trajectory, ground_truth, segments_sizes)
 
     if len(errors) > 0:
         # Compute averaged errors

@@ -1,3 +1,4 @@
+import dataclasses
 from typing import Optional, Union
 
 from slam.common.modules import _with_ct_icp
@@ -131,6 +132,7 @@ if _with_ct_icp:
             lidar_frame_ref = lidar_frame.GetStructuredArrayRef()
             numpy_pc = lidar_frame_ref["raw_point"].copy()
             timestamps = lidar_frame_ref["timestamp"].copy()
+            data_dict[f"{self.numpy_pc_channel}_alpha_timestamps"] = lidar_frame_ref["alpha_timestamp"].copy()
 
             data_dict[self.numpy_pc_channel] = numpy_pc.astype(np.float32)
             data_dict[f"{self.numpy_pc_channel}_timestamps"] = timestamps
@@ -210,7 +212,9 @@ if _with_ct_icp:
 
         def __init__(self, config: CT_ICPDatasetConfig):
             super().__init__(config)
-            self.options: CT_ICPDatasetOptionsWrapper = CT_ICPDatasetOptionsWrapper(**config.options).to_pct_object()
+            self.options: CT_ICPDatasetOptionsWrapper = CT_ICPDatasetOptionsWrapper(
+                **(dataclasses.asdict(config.options) if isinstance(config.options, CT_ICPDatasetOptionsWrapper)
+                   else config.options)).to_pct_object()
 
             root_path = Path(self.options.root_path)
             assert_debug(root_path.exists(), f"The root path of the dataset {str(root_path)} does not exist on disk")

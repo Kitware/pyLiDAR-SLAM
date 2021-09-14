@@ -87,6 +87,7 @@ if _with_cv2:
         max_num_candidates: int = 10  # Maximum number of candidates to inspect
         max_distance: float = 100  # Limit the maximum distance to search for loops
         min_id_distance: int = 200  # Do not try to detect loop closure between temporally close poses
+        stride: int = 1
 
         icp_distance_threshold: float = 1.0
         with_icp_refinement: bool = _with_o3d  # Only activated if open3d can be loaded
@@ -101,7 +102,8 @@ if _with_cv2:
             "im_width": 1200,
             "color_map": "jet",
             "inlier_threshold": 50,
-            "distance_threshold": 2.0
+            "distance_threshold": 2.0,
+            "flip_z_axis": False
         }))
 
 
@@ -274,9 +276,10 @@ if _with_cv2:
             check_tensor(pointcloud, [-1, 3], np.ndarray)
             check_tensor(relative_pose, [4, 4], np.ndarray)
 
-            self.data.current_map_pcs.append(transform_pointcloud(pointcloud, self.data.last_inserted_pose))
-            self.data.current_map_poses.append(np.copy(self.data.last_inserted_pose))
-            self.data.current_map_frameids.append(self.data.current_frame_id)
+            if self.data.current_frame_id % self.config.stride  == 0:
+                self.data.current_map_pcs.append(transform_pointcloud(pointcloud, self.data.last_inserted_pose))
+                self.data.current_map_poses.append(np.copy(self.data.last_inserted_pose))
+                self.data.current_map_frameids.append(self.data.current_frame_id)
 
             # Step 2: Construct a local submap and run the loop closure
             if len(self.data.current_map_pcs) >= self.config.local_map_size:

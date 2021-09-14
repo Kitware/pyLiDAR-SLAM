@@ -57,7 +57,11 @@ class ICPFrameToModelConfig(OdometryConfig, RuntimeDefaultDict):
 
     # Visualization parameters
     viz_with_edl: bool = True
-    viz_num_pcs: int = 50
+    viz_color_by_elevation: bool = True
+    viz_grayscale: str = "viridis"
+    viz_num_pcs: int = 500
+    viz_z_min: float = 0.0
+    viz_z_max: float = 30
 
 
 cs = ConfigStore.instance()
@@ -197,7 +201,10 @@ class ICPFrameToModel(OdometryAlgorithm):
             self.pose.build_pose_matrix(new_rpose_params.cpu().to(torch.float64).reshape(1, 6))[0].numpy())
         self.absolute_poses.append(latest_pose)
 
-        tgt_np_pc = self._tgt_pc.cpu().numpy().reshape(-1, 3)
+        if "distorted" in data_dict:
+            tgt_np_pc = data_dict["distorted"]
+        else:
+            tgt_np_pc = self._tgt_pc.cpu().numpy().reshape(-1, 3)
 
         if self._has_window:
             # Add Ground truth poses (mainly for visualization purposes)
@@ -210,7 +217,17 @@ class ICPFrameToModel(OdometryAlgorithm):
             # Apply absolute pose to the pointcloud
             world_points = np.einsum("ij,nj->ni", latest_pose[:3, :3].astype(np.float32), tgt_np_pc)
             world_points += latest_pose[:3, 3].reshape(1, 3).astype(np.float32)
-            self.viz3d_window.set_pointcloud(self._iter % self.config.viz_num_pcs, world_points, point_size=1)
+
+            if self.config.viz_color_by_elevation:
+                color = scalar_gray_cmap(world_points[:, 2], cmap=self.config.viz_grayscale,
+                                         z_max=self.config.viz_z_max,
+                                         z_min=self.config.viz_z_min)
+                self.viz3d_window.set_pointcloud(self._iter % self.config.viz_num_pcs, world_points, color=color,
+                                                 point_size=1)
+            else:
+                self.viz3d_window.set_pointcloud(self._iter % self.config.viz_num_pcs, world_points,
+                                                 point_size=1)
+
             # Follow Camera
             camera_pose = latest_pose.astype(np.float32).dot(np.array([[1.0, 0.0, 0.0, 0.0],
                                                                        [0.0, 1.0, 0.0, 0.0],

@@ -166,7 +166,6 @@ if _with_ct_icp:
         The Configuration for the Point-To-Plane ICP based Iterative Least Square estimation of the pose
         """
         algorithm: str = "ct_icp"
-        debug_viz: bool = False
 
         numpy_pc_key: str = "numpy_pc"
         timestamps_key: str = "numpy_pc_timestamps"
@@ -174,6 +173,13 @@ if _with_ct_icp:
         pose_type: str = "mid_pose"  # The relative pose to return pose (in mid_pose, begin_pose, end_pose)
 
         options: OdometryOptionsWrapper = field(default_factory=lambda: OdometryOptionsWrapper())
+
+        viz_debug: bool = False
+        viz_color_by_elevation: bool = True
+        viz_grayscale: str = "viridis"
+        viz_num_pcs: int = 500
+        viz_z_min: float = 0.0
+        viz_z_max: float = 30
 
 
     def default_drive_config() -> CT_ICPOdometryConfig:
@@ -226,7 +232,7 @@ if _with_ct_icp:
             self.options: Optional[pct.OdometryOptions] = None
             self.ct_icp_odometry: Optional[pct.Odometry] = None
 
-            self._has_window = config.debug_viz and _with_viz3d
+            self._has_window = config.viz_debug and _with_viz3d
             self.viz3d_window = None
             self._frame_index = 0
             self.absolute_poses = []
@@ -295,7 +301,11 @@ if _with_ct_icp:
                 if min_timestamp != max_timestamp:
                     alpha_timestamp = (timestamps - min_timestamp) / (max_timestamp - min_timestamp)
                 else:
-                    alpha_timestamp = timestamps
+                    alpha_timestamps_key = f"{self.config.numpy_pc_key}_alpha_timestamps"
+                    if alpha_timestamps_key in data_dict:
+                        alpha_timestamp = data_dict[alpha_timestamps_key]
+                    else:
+                        alpha_timestamp = np.ones_like(timestamps)
 
                 frame_index = np.ones((new_points.shape[0],), dtype=np.int32) * self._frame_index
 
@@ -344,7 +354,12 @@ if _with_ct_icp:
 
             if self._has_window:
                 wpoints = world_points.astype(np.float32)
-                self.viz3d_window.set_pointcloud(self._frame_index % 100, wpoints)
+                if self.config.viz_color_by_elevation:
+                    color = scalar_gray_cmap(wpoints[:, 2], "viridis").astype(np.float32)
+                    self.viz3d_window.set_pointcloud(self._frame_index % self.config.viz_num_pcs,
+                                                     wpoints, color=color)
+                else:
+                    self.viz3d_window.set_pointcloud(self._frame_index % self.config.viz_num_pcs, wpoints)
                 self.viz3d_window.update_camera(new_pose.astype(np.float32))
                 if self._frame_index % 1 == 0:
                     if len(self.gt_poses) > 0:
