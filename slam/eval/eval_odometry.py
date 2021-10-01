@@ -54,8 +54,8 @@ def draw_trajectory_files(xs: list, ys: list,
     for i, (x, y) in enumerate(zip(xs, ys)):
         axes.plot(x, y, linewidth=4, label=labels[i], color=color_palette[i])
 
-    axes.set_xlabel("X[m]")
-    axes.set_ylabel("Y[m]")
+    axes.set_xlabel("x[m]")
+    axes.set_ylabel("y[m]")
 
     leg = axes.legend(loc="lower left")
     for line in leg.get_lines():

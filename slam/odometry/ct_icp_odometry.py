@@ -362,7 +362,7 @@ if _with_ct_icp:
                     self.viz3d_window.set_pointcloud(self._frame_index % self.config.viz_num_pcs, wpoints)
                 self.viz3d_window.update_camera(new_pose.astype(np.float32))
                 if self._frame_index % 1 == 0:
-                    if len(self.gt_poses) > 0:
-                        self.viz3d_window.set_poses(-1, np.array(self.gt_poses).astype(np.float32))
+                    if len(self.absolute_poses) > 0:
+                        self.viz3d_window.set_poses(-1, np.array(self.absolute_poses).astype(np.float32))
 
             self._frame_index += 1
