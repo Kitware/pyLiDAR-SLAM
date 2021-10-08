@@ -19,11 +19,43 @@ rewritten (and hopefully improved) in a near future.
 
 
 *pyLIDAR-SLAM* is designed to be modular, multiple components are implemented at each stage of the pipeline.
+Its modularity can make it a bit complicated to use. We provide this [wiki](https://github.com/Kitware/pyLiDAR-SLAM/wiki) to help you navigate it.
+If you have any questions, do not hesitate raising issues.
 
-The motivation is to easily test and compare multiple SLAM algorithms in the same conditions, and a variety of datasets.
-For a detailed presentation of its different components see [toolbox.md](docs/toolbox.md).
+The documentation is organised as follows:
+
+- [`INSTALLATION:`](https://github.com/Kitware/pyLiDAR-SLAM/wiki/INSTALLATION) Describes how to install pyLiDAR-SLAM and its different components
+- [`DATASETS:`](https://github.com/Kitware/pyLiDAR-SLAM/wiki/DATASETS) Describes the different datasets integrated in pyLiDAR-SLAM, and how to install them
+- [`TOOLBOX:`](https://github.com/Kitware/pyLiDAR-SLAM/wiki/SLAM-LiDAR-Toolbox) Describes the contents of the toolbox and the different modules proposed
+- [`BENCHMARK:`](https://github.com/Kitware/pyLiDAR-SLAM/wiki/Benchmark) Describes the benchmarks supported in the Dataset **/!\ Note:** This section is still in construction
 
 The goal for the future is to gradually add functionalities to pyLIDAR-SLAM (Loop Closure, Motion Segmentation, Multi-Sensors, etc...).
+
+## News
+
+> **[08/10/2021]:** We also introduce support for individual rosbags (Introducing naturally an overhead compared to using ROS directrly, but provides the flexibility of pyLiDAR-SLAM)
+>
+> **[08/10/2021]:** We release code for Loop Closure with **pyLiDAR-SLAM** accompanied with a simple **PoseGraph** Optimization.
+>
+> **[08/10/2021]:** We release our [new work](https://arxiv.org/abs/2109.12979) on arXiv. It proposes a new state-of-the-art pure LiDAR odometry implemented in C++ (check the [project](https://github.com/jedeschaud/ct_icp) main page). python wrappings are available, and it can be used with **pyLiDAR-SLAM**.
+
+## Installation 
+
+See the wiki page [INSTALLATION](https://github.com/Kitware/pyLiDAR-SLAM/wiki/INSTALLATION) for instruction to install the code base and the modules you are interested in. 
+
+### DATASETS
+
+*pyLIDAR-SLAM* incorporates different datasets, see [DATASETS](https://github.com/Kitware/pyLiDAR-SLAM/wiki/DATASETS)  for installation and setup instructions for each of these datasets.
+Only the datasets implemented in *pyLIDAR-SLAM* are compatible with hydra's mode and the scripts `run.py` and `train.py`. 
+
+But you can define your own datasets by extending the class [`DatasetLoader`](slam/dataset/dataset.py).
+
+**New:** We support individual rosbags (without requiring a complete ROS installation). See the minimal example for more details.
+
+
+## A Minimal Example
+
+> Install a rosbag (e.g. From  SubT)
 
 ## Project structure
 
@@ -45,18 +77,6 @@ The goal for the future is to gradually add functionalities to pyLIDAR-SLAM (Loo
 ├─ tests
 ├─ run.py                  # Main script to run a LiDAR SLAM on sequences of a Dataset
 └─ train.py                # Main script to launch a training
-```
-## Installation 
-
-Clone the project:
-```bash 
-git clone https://github.com/Kitware/pyLiDAR-SLAM
-```
-Install [pytorch](https://pytorch.org/get-started/previous-versions/) and [hydra](https://hydra.cc/docs/intro).
-
-Install the required packages:
-```bash
-pip install -r requirements.txt
 ```
 
 ## *Understanding the configuration*:
@@ -202,12 +222,6 @@ The output files are saved by default at:
 ```
 
 
-### DATASETS
-
-*pyLIDAR-SLAM* incorporates different datasets, see [datasets.md](docs/datasets.md) for installation and setup instructions for each of these datasets.
-Only the datasets implemented in *pyLIDAR-SLAM* are compatible with hydra's mode and the scripts `run.py` and `train.py`. 
-
-But you can define your own datasets by extending the class [`DatasetLoader`](slam/dataset/dataset.py).
 
 
 ## Benchmarks
