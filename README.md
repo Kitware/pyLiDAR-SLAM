@@ -2,7 +2,6 @@
 
 This codebase proposes modular light python and pytorch implementations of several LiDAR Odometry methods, 
 which can easily be evaluated and compared on a set of public Datasets.
-![pyLiDAR-SLAM LiDAR Odometry modules](docs/data/overview.png)
 
 It heavily relies on [omegaconf](https://omegaconf.readthedocs.io/en/2.0_branch/) and [hydra](https://hydra.cc/), 
 which allows us to easily test the different modules and parameters with few but structured configuration files.
@@ -16,7 +15,7 @@ rewritten (and hopefully improved) in a near future.
 
 ## Overview
 
-![KITTI Sequence 00 with pyLiDAR-SLAM](docs/data/pylidar_slam_1.png) ![KITTI Sequence 00 with pyLiDAR-SLAM](docs/data/pylidar_slam_3.png)
+![KITTI Sequence 00 with pyLiDAR-SLAM](docs/data/example_pointclouds.png)
 
 
 *pyLIDAR-SLAM* is designed to be modular, multiple components are implemented at each stage of the pipeline.
