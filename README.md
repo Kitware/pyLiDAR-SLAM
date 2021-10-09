@@ -17,7 +17,6 @@ rewritten (and hopefully improved) in a near future.
 
 ![KITTI Sequence 00 with pyLiDAR-SLAM](docs/data/example_pointclouds.png)
 
-
 *pyLIDAR-SLAM* is designed to be modular, multiple components are implemented at each stage of the pipeline.
 Its modularity can make it a bit complicated to use. We provide this [wiki](https://github.com/Kitware/pyLiDAR-SLAM/wiki) to help you navigate it.
 If you have any questions, do not hesitate raising issues.
@@ -33,7 +32,7 @@ The goal for the future is to gradually add functionalities to pyLIDAR-SLAM (Loo
 
 ## News
 
-> **[08/10/2021]:** We also introduce support for individual rosbags (Introducing naturally an overhead compared to using ROS directrly, but provides the flexibility of pyLiDAR-SLAM)
+> **[08/10/2021]:** We also introduce support for individual rosbags (Introducing naturally an overhead compared to using ROS directly, but provides the flexibility of pyLiDAR-SLAM)
 >
 > **[08/10/2021]:** We release code for Loop Closure with **pyLiDAR-SLAM** accompanied with a simple **PoseGraph** Optimization.
 >
@@ -55,179 +54,102 @@ But you can define your own datasets by extending the class [`DatasetLoader`](sl
 
 ## A Minimal Example
 
-> Install a rosbag (e.g. From  SubT)
+> Download a rosbag (e.g. From  Rosbag Cartographer):
+[example_rosbag](https://storage.googleapis.com/cartographer-public-data/bags/backpack_3d/with_intensities/b3-2016-04-05-15-51-36.bag)
 
-## Project structure
+> Launch the SLAM:
 
-```bash
-├─ config                  # Configuration files schemas 
-├─ slam 
-    ├─ common              # Common components 
-    ├─ dataset             # Code to load Datasets 
-    ├─ eval                # Code to evaluate the quality of SLAM algorithms 
-    ├─ models              # PoseNet model code 
-    ├─ odometry            # Odometry modules 
-    ├─ training            # Modules for training PoseNet models 
-    ├─ initialization.py   # Modules for Initial motion estimate 
-    ├─ preprocessing.py    # Modules for Preprocessing the point cloud 
-    ├─ backend.py          # Work in Progress
-    ├─ loop_closure.py     # Work in Progress
-    └─ viz                 # Tools for visualization 
-
-├─ tests
-├─ run.py                  # Main script to run a LiDAR SLAM on sequences of a Dataset
-└─ train.py                # Main script to launch a training
+```
+python3 run.py num_workers=1 /          # The number of process workers to load the dataset (should be at most 1 for a rosbag)
+    slam/initialization=NI /            # The initialization considered (NI=No Initialization / CV=Constant Velocity, etc...)
+    slam/preprocessing=grid_sample /    # Preprocessing on the point clouds
+    slam/odometry=icp_odometry /        # The Odometry algorithm
+    slam.odometry.viz_debug=True /      # Whether to launch the visualization of the odometry
+    slam/loop_closure=none /            # The loop closure algorithm selected (none by default)
+    slam/backend=none /                 # The backend algorithm (none by default)
+    dataset=rosbag /                    # The dataset selected (a simple rosbag here)
+    dataset.main_topic=horizontal_laser_3d /    # The pointcloud topic of the rosbag 
+    dataset.accumulate_scans=True /             # Whether to accumulate multiple messages (a sensor can return multiple scans lines or an accumulation of scans) 
+    dataset.file_path=<path_to_rosbag_dir>/b3-2016-04-05-15-51-36.bag / #  The path to the rosbag file 
+    hydra.run.dir=.outputs/TEST_DOC   #  The log directory where the trajectory will be saved
 ```
 
-## *Understanding the configuration*:
+> This will output the trajectory, log files (including the full config) on disk at location `.outputs/TEST_DOC`.
+> 
+> Our minimal LiDAR Odometry, is actually a naïve baseline implementation, which is mostly designed and tested on driving datasets (see the KITTI benchmark). 
+> Thus in many cases it will fail, be imprecise or too slow. 
+> 
+> We recommend you install the module `pyct_icp` from [our recent work](https://github.com/jedeschaud/ct_icp), which provides a much more versatile and precise LiDAR-Odometry.
+>
+> See [the wiki page INSTALLATION](https://github.com/Kitware/pyLiDAR-SLAM/wiki/INSTALLATION) for more details on how to install the different modules. 
+> If you want to visualize in real time the quality of the SLAM, consider also installing the module `pyviz3d`.
 
-Using **Hydra**, one can easily change any element of the configuration by adding an argument to the launch script.
-
-The configuration is organised into groups, within each group, multiple base configurations are defined by a simple string.
-
-Selecting within a group a configurations is done as follows:
-```bash
-python run.py <config-path-to-group>/<group>=<config_name>
+> Once `pyct_icp` is installed, you can modify the command line above: 
+```
+python3 run.py num_workers=1 /          
+    slam/initialization=NI /            
+    slam/preprocessing=none /    
+    slam/odometry=ct_icp_robust_shaky / # The CT-ICP algorithm for shaky robot sensor (here it is for a backpack) 
+    slam.odometry.viz_debug=True /      
+    slam/loop_closure=none /            
+    slam/backend=none /                 
+    dataset=rosbag /                    
+    dataset.main_topic=horizontal_laser_3d /    
+    dataset.accumulate_scans=True /             
+    dataset.file_path=<path_to_rosbag_dir>/b3-2016-04-05-15-51-36.bag / 
+    hydra.run.dir=.outputs/TEST_DOC   
 ```
 
+> It will launch pyct_icp on the same rosbag (running much faster than our python based odometry)
+>
+> With `pyviz3d` you should see the following reconstruction (obtained by a backpack mounting the stairs of a museum): 
 
-The configuration hierarchy in this project follows the hierarchy of folder `config`, consists of the following groups:
+![Minimal Example](docs/data/minimal_example.png)
 
->- **Group** [`dataset`](slam/dataset/dataset.py):
->   - configurations: [`kitti`](slam/dataset/kitti_dataset.py), [`nclt`](slam/dataset/nclt_dataset.py), [`ford_campus`](slam/dataset/ford_campus.py)
->- **Group** [`slam/initialization`](slam/initialization.py) (Initialization module for the Frame To Model):
->   - configurations: [`EI`](slam/initialization.py), [`CV`](slam/initialization.py), [`PoseNet`](slam/initialization.py)
->- **Group** [`slam/odometry/local_map`](slam/odometry/local_map.py) (The local map Implementation):
->   - configurations [`projective`](slam/odometry/local_map.py), [`kdtree`](slam/odometry/local_map.py), 
 
-```bash
-├─ config
-    ├─ hydra                        # Hydra configuration files
-    ├─ dataset                      # Dataset Group 
-        ├─ kitti.yaml                   # KITTI default configuration
-        ├─ nclt.yaml                    # NCLT default configuration
-        └─ ford_campus.yaml             # FORD CAMPUS default configuration
-    ├─ slam 
-        ├─ odometry         
-            ├─ alignment                # Alignment Group (will be expended in the future)
-                └─ point_to_plane_GN.yaml   # Point-to-Plane alignment for the Frame-to-Model
-            └─ local_map                # The Local Map Group
-                ├─ projective               # The projective Frame-to-Model proposed
-                └─ kdtree                   # The kdtree based Frame-to-Model alignmeeent 
-        ├─ preprocessing            # Preprocessing Group
-            ├─ grid_sample            
-            ├─ voxelization            
-               ...
+## More advanced examples / Motivation
 
-        ├─ initialization           # Initialization Group
-            ├─ CV.yaml                  # Configuration for the constant velocity model
-            ├─ PoseNet.yaml             # Configuration for using PoseNet as initialization
-            └─ EI.yaml                  # Elevation Image 2D registration configuration
-            
-        ├─ loop_closure                 # Loop Closure Group
-        └─ backend                      # Backend Group
+> **pyLiDAR-SLAM** will progressively include more and more modules, to build more powerful and more accessible LiDAR odometries.
+>
+> For a more detailed / advanced usage of the toolbox please refer to our documentation in the wiki [HOME](https://github.com/Kitware/pyLiDAR-SLAM/wiki/HOME).
 
-    ├─ training                     # Training Group
-        ├─ supervised.yaml              # The configuration for   supervised training of PoseNet
-        ├─ unsupervised.yaml            # The configuration for unsupervised training of PoseNet 
-    ├─ deep_odometry.yaml           # Configuration file for full Deep LiDAR odometry
-    ├─ icp_odometry.yaml            # Configuration file for ICP Frame-to-Model odometry
-    └─ train_posenet.yaml           # Configuration file to traing PoseNet
+> The motivation behind the toolbox, is really to compare different modules, **hydra** is very useful for this purpose.
+>
+> For example the script below launches consecutively the `pyct_icp` and `icp_odometry` odometries on the same datasets. 
+
+```
+python3 run.py -m /             # We specify the -m option to tell hydra to perform a sweep (or grid search on the given arguments)
+    num_workers=1 /          
+    slam/initialization=NI /            
+    slam/preprocessing=none /    
+    slam/odometry=ct_icp_robust_shaky, icp_odometry /   # The two parameters of the grid search: two different odometries
+    slam.odometry.viz_debug=True /      
+    slam/loop_closure=none /            
+    slam/backend=none /                 
+    dataset=rosbag /                    
+    dataset.main_topic=horizontal_laser_3d /    
+    dataset.accumulate_scans=True /             
+    dataset.file_path=<path_to_rosbag_dir>/b3-2016-04-05-15-51-36.bag / 
+    hydra.run.dir=.outputs/TEST_DOC   
 ```
 
-To change a named variable within a specific configuration, is done as follows:  
-```hydra
-python run.py <config-path-to-variable>.<var_name>=<value>
-```
-For root variables, which are not defined in the .yaml files (but in the Structured Config dataclasses), you might also need to append a  `+`
-to the variable declaration (Hydra will complain if this is the case):
-```hydra
-python train.py +num_workers=4 +device=cuda:0
-```
+#### Benchmarks
 
-Hydra generates a lot of outputs (at each run).
-We use the following environment variables to structure the output folder of an execution:
+We use this functionality of *pyLIDAR-SLAM* to compare the performances of its different modules on different datasets.
+In [Benchmark](https://github.com/Kitware/pyLiDAR-SLAM/wiki/Benchmark) we present the results of *pyLIDAR-SLAM* on the most popular open-source datasets. 
 
-```bash
-JOB_NAME= The name of the job being run
-DATASET= The name of the dataset the job is run on
-TRAIN_DIR= The path to the dataset where training files (checkpoint and tensorboard logs) for PoseNet should be saved
-```
-Other, dataset specific environment variables are defined below.
+Note this work in still in construction, and we aim to improve it and make it more extensive in the future.
 
 
-Hydra will raise Exceptions on invalid configurations. 
-See [hydra](https://hydra.cc/)  documentation for more details.
+#### Research results
 
-## Using *pyLIDAR-SLAM* (with *hydra*):
-
-> *pyLIDAR-SLAM* proposes two scripts `run.py` and `train.py` which run with hydra's configuration generation (notably hydra's configuration verification).
-
-> Hydra comes with many perks designed for a research workflow (multiple runs with grids of arguments, automatic setting of output directories, etc..). 
-> But requires an effort to get into: hydra's enforced rigidity often leads to many configuration errors. *Read carefully hydra's error messages which give clues to the configuration errors*
-
-### Running the SLAM 
-
-The script `run.py` executes the SLAM algorithm defined by the configuration on the datasets defined in the configuration.
-More specifically, it will:
- - Load all sequences of the given dataset
- - Sequentially launch the SLAM on each sequence
- - Output the estimated trajectory in the allocated folder
- - And if the sequence has defined ground truth poses, computes and saves the trajectory error.
-
-The following example runs a **Projective Frame-to-Model Odometry** on the sequences of KITTI dataset, using the device `cuda:0`: 
-```bash
-# Set up the following required environment variables
-export JOB_NAME=kitti_F2M                                          # The folder to log hydra output files
-export DATASET=KITTI                                               # Name of the Dataset to construct the destination folder 
-export KITTI_ODOM_ROOT=<path-to-kitti-odometry-root-directory>     # The path to KITTI odometry benchmark files
-
-# Run the script
-python run.py dataset=kitti num_workers=4 device=cuda:0 slam/odometry/local_map=projective \
-       slam/initialization=CV slam.odometry.local_map.num_neighbors_normals=15
-```
-
-The output files (configuration files, logs, and optionally metrics on the trajectory) will be saved by default at location : 
-```bash
-.outputs/slam/${DATASET}/${JOB_NAME}/<date_time>/.
-```
-
-> Note: The output directory can be changed, using arguments `hydra.run.dir=<path-to-output-dir>`.
-
-### Training PoseNet:
-
-The script `train.py` launches a training of *PoseNet* on a specified dataset.
-The script will:
- - Load all train, test and eval sequences from the Dataset 
- - For each epoch, update the running PoseNet model in memory
- - Save the model at a specified given location
-
-The following example launches a training of Posenet on KITTI Dataset, for 100 epochs:
-```bash
-export DATASET=kitti
-export JOB_NAME=train_posenet
-export KITTI_ODOM_ROOT=<path-to-kitti-odometry-root-directory>     # The path to KITTI odometry benchmark files
-export TRAIN_DIR=<absolute-path-to-the-desired-train-dir>          # Path to the output models 
-
-# Launches the Training of PoseNet
-python train.py +device=cuda:0 +num_workers=4 +num_epochs=100 dataset=kitti
-```
-
-> /!\ The working directory of the script is controlled by hydra, so beware of relative paths!
-
-The output files are saved by default at: 
-```bash
-.outputs/training/posenet_kitti_unsupervised/.          ===> Training files
-.outputs/.training/<JOB_NAME>/<date_time>/.             ===> Hydra logs and config files for the current run 
-```
+> Small improvements will be regularly made to `pyLiDAR-SLAM`, However *major changes / new modules* will more likely be introduced along research articles (which we aim to integrate with this project in the future)
+>
+> Please check [RESEARCH](https://github.com/Kitware/pyLiDAR-SLAM/wiki/RESEARCH) to see the research papers associated to this work. 
 
 
 
 
-## Benchmarks
-
-One of the motivation of *pyLIDAR-SLAM* is to be able to compare the performances of its different modules on different datasets.
-In [benchmark.md](docs/benchmark.md) we present the results of *pyLIDAR-SLAM* on the most popular open-source datasets. 
 
 ### System Tested
 

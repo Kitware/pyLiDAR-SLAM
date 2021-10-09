@@ -209,6 +209,7 @@ if _with_ct_icp:
     cs.store(name="ct_icp_drive", group="slam/odometry", node=default_drive_config())
     cs.store(name="ct_icp_robust_drive", group="slam/odometry", node=robust_drive_config())
     cs.store(name="ct_icp_slow_outdoor", group="slam/odometry", node=default_small_motion_config())
+    cs.store(name="ct_icp_robust_shaky", group="slam/odometry", node=default_small_motion_config())
 
 
     class CT_ICPOdometry(OdometryAlgorithm):

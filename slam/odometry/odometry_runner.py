@@ -45,6 +45,7 @@ class SLAMRunnerConfig:
 
     # ------------------
     # Default parameters
+    max_num_frames: int = -1  # The maximum number of frames to run on
     log_dir: str = field(default_factory=os.getcwd)
     num_workers: int = 2
     pin_memory: bool = True
@@ -176,6 +177,9 @@ class SLAMRunner(ABC):
                     # Measure the time spent on the processing of the next frame
                     elapsed_sec = time.time() - start
                     elapsed += elapsed_sec
+
+                    if 0 < self.config.max_num_frames <= b_idx:
+                        break
             except KeyboardInterrupt:
                 catch_exception()
                 raise

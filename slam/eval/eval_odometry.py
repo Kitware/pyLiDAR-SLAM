@@ -52,7 +52,7 @@ def draw_trajectory_files(xs: list, ys: list,
 
     color_palette = sns.color_palette(palette="tab10" if palette is None else palette, n_colors=len(xs), as_cmap=True)
     for i, (x, y) in enumerate(zip(xs, ys)):
-        axes.plot(x, y, linewidth=4, label=labels[i], color=color_palette[i])
+        axes.plot(x, y, linewidth=4, label=labels[i], color=color_palette.colors[i])
 
     axes.set_xlabel("x[m]")
     axes.set_ylabel("y[m]")
