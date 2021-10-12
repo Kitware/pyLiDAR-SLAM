@@ -56,6 +56,8 @@ But you can define your own datasets by extending the class [`DatasetLoader`](sl
 
 > Download a rosbag (e.g. From  Rosbag Cartographer):
 [example_rosbag](https://storage.googleapis.com/cartographer-public-data/bags/backpack_3d/with_intensities/b3-2016-04-05-15-51-36.bag)
+>
+> **Note:** You need the `rosbag` python module installed to run this example (see [INSTALLATION](https://github.com/Kitware/pyLiDAR-SLAM/wiki/INSTALLATION) for instructions)
 
 > Launch the SLAM:
 
