@@ -1,19 +1,15 @@
 import torch
 
-from slam.common.utils import assert_debug, check_sizes
+from slam.common.utils import assert_debug
 from slam.viz.color_map import tensor_to_image
 import numpy as np
-import logging
 
-try:
-    import cv2
-
-    _with_cv2 = True
-except ModuleNotFoundError:
-    logging.warning("OpenCV (cv2 python module) not found, visualization disabled")
-    _with_cv2 = False
+from slam.common.modules import _with_cv2
 
 if _with_cv2:
+    import cv2
+
+
     class _ImageVisualizer(object):
         """
         A Visualizer displays images tensors in OpenCV windows
@@ -93,11 +89,3 @@ def ImageVisualizer(channels: list, update_frequency: int = 10, wait_key: int = 
         return _ImageVisualizer(channels, update_frequency, wait_key)
     else:
         return None
-
-
-try:
-    import viz3d
-
-    _with_viz3d = True
-except ImportError:
-    _with_viz3d = False

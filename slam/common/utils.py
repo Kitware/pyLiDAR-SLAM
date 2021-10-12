@@ -1,12 +1,15 @@
+import dataclasses
 import functools
 import subprocess
-from abc import abstractmethod
 
 from typing import Optional, Union
 import yaml
 import torch
 import numpy as np
 from omegaconf import DictConfig, MISSING
+from typeguard import check_type
+
+TensorType = Union[torch.Tensor, np.ndarray]
 
 
 def get_git_hash() -> Optional[str]:
@@ -48,7 +51,7 @@ def sizes_match(tensor, sizes: list) -> bool:
     return True
 
 
-def check_sizes(tensor: (torch.Tensor, np.ndarray), sizes: list):
+def check_tensor(tensor: (torch.Tensor, np.ndarray), sizes: list, tensor_type: Optional[type] = TensorType):
     """
     Checks the size of a tensor along all its dimensions, against a list of sizes
 
@@ -56,15 +59,19 @@ def check_sizes(tensor: (torch.Tensor, np.ndarray), sizes: list):
     For each dimension, the tensor must have the same size as the corresponding entry in the list
     A size of -1 in the list matches all sizes
 
+    Optionally it checks the type of the tensor (either np.ndarray or torch.Tensor)
+
     Any Failure raises an AssertionError
 
-    >>> check_sizes(torch.randn(10, 3, 4), [10, 3, 4])
-    >>> check_sizes(torch.randn(10, 3, 4), [-1, 3, 4])
-    >>> check_sizes(np.random.randn(2, 3, 4), [2, 3, 4])
+    >>> check_tensor(torch.randn(10, 3, 4), [10, 3, 4])
+    >>> check_tensor(torch.randn(10, 3, 4), [-1, 3, 4])
+    >>> check_tensor(np.random.randn(2, 3, 4), [2, 3, 4])
     >>> #torch__check_sizes(torch.randn(10, 3, 4), [9, 3, 4]) # --> throws an AssertionError
     """
     assert_debug(sizes_match(tensor, sizes),
                  f"[BAD TENSOR SHAPE] Wrong tensor shape got {tensor.shape} expected {sizes}")
+    if tensor_type is not None:
+        check_type("tensor", tensor, tensor_type)
 
 
 def _decorator(d):
@@ -84,7 +91,7 @@ def check_input_size(shape: list):
     @_decorator
     def __decorator(func):
         def _wrapper(array, **kwargs):
-            check_sizes(array, shape)
+            check_tensor(array, shape)
             return func(array, **kwargs)
 
         return _wrapper
@@ -137,7 +144,7 @@ def batched(*shapes, torch_compatible: bool = True, unwrap_output_tensors: bool 
                 if extended:
                     tensor = __wrap(tensor)
                     batched_args[idx] = tensor
-                check_sizes(tensor, shape)
+                check_tensor(tensor, shape)
 
             result = func(*batched_args, **kwargs)
             if extended and unwrap_output_tensors:
@@ -165,13 +172,13 @@ def remove_nan(tensor: Union[torch.Tensor, np.ndarray]):
     assert_debug(ndims <= 2)
 
     if isinstance(tensor, torch.Tensor):
-        _filter = torch.isnan(tensor)
+        _filter = ~torch.isnan(tensor)
         if ndims == 2:
-            _filter = ~torch.any(_filter, dim=1)
+            _filter = torch.all(_filter, dim=1)
     elif isinstance(tensor, np.ndarray):
-        _filter = np.isnan(tensor)
+        _filter = ~np.isnan(tensor)
         if ndims == 2:
-            _filter = ~np.any(_filter, axis=1)
+            _filter = np.all(_filter, axis=1)
     else:
         raise NotImplementedError("The tensor shape does not exist")
 
@@ -180,13 +187,79 @@ def remove_nan(tensor: Union[torch.Tensor, np.ndarray]):
 
 def modify_nan_pmap(tensor: torch.Tensor, default_value: float = 0.0):
     """Set all pixel data of a projection map which have a nan to a default value"""
-    check_sizes(tensor, [-1, -1, -1, -1])
+    check_tensor(tensor, [-1, -1, -1, -1])
     _filter: torch.Tensor = torch.any(torch.isnan(tensor), dim=1, keepdim=True)
     _filter = _filter.repeat(1, tensor.shape[1], 1, 1)
     new_tensor = tensor.clone()
     new_tensor[_filter] = default_value
 
     return new_tensor
+
+
+class RuntimeDefaultDict:
+    """
+    A Utility class which allows to define at runtime a set of default list for attributes of a dataclass
+
+    This allows to complete hydra's default system which either requires to define all defaults at the root
+    Or to specify them in the root config file (which complicates non rigid tree paths)
+
+    Note: The dict `_default_dict` is shared between all instances
+    """
+    _default_dict: dict = {}  # A dict attribute name -> default node (which are read from hydra's ConfigStore)
+
+    @staticmethod
+    def runtime_defaults(attr_to_cs_path: dict):
+        """A Decorator which adds a set of defaults a dataclass"""
+
+        def wrap(cls):
+            assert_debug(issubclass(cls, RuntimeDefaultDict))
+            for attr, path in attr_to_cs_path.items():
+                key = RuntimeDefaultDict.attribute_key(cls, attr)
+                if key not in RuntimeDefaultDict._default_dict:
+                    RuntimeDefaultDict._default_dict[key] = path
+            return cls
+
+        return wrap
+
+    @staticmethod
+    def attribute_key(cls, attribute: str):
+        assert_debug(dataclasses.is_dataclass(cls), "Only Dataclasses can inherit from WithDefaultList")
+        assert_debug(hasattr(cls, attribute), f"The dataclass does not contain the attribute {attribute}")
+        return f"{str(cls)}@{attribute}"
+
+    def is_complete(self):
+        """Returns whether the object contains any missing fields"""
+        assert_debug(dataclasses.is_dataclass(self), "Only Dataclasses can inherit from WithDefaultList")
+        for field in dataclasses.fields(self):
+            assert isinstance(field, dataclasses.Field)
+            value = getattr(self, field.name)
+            if value == MISSING:
+                return False
+
+        return True
+
+    def complete_defaults(self):
+        from hydra.core.config_store import ConfigStore
+        assert_debug(dataclasses.is_dataclass(self), "Only Dataclasses can inherit from WithDefaultList")
+        cs = ConfigStore.instance()
+        for field in dataclasses.fields(self):
+            key = self.attribute_key(type(self), field.name)
+            if key not in self._default_dict:
+                continue
+
+            if hasattr(self, field.name):
+                previous_value = getattr(self, field.name, MISSING)
+                if previous_value != MISSING:
+                    continue
+
+            cd_path = self._default_dict[key]
+            config_node = cs.load(f"{cd_path}.yaml")
+            assert_debug(config_node is not None, "Could not find any matching defaults in the config store.")
+            setattr(self, field.name, config_node.node)
+
+    def completed(self):
+        self.complete_defaults()
+        return self
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -203,6 +276,7 @@ class ObjectLoaderEnum:
         else:
             assert_debug(hasattr(config, cls.type_name()), f"The object {config} is not a valid config.")
             _type = getattr(config, cls.type_name())
+
         assert_debug(hasattr(cls, "__members__"))
         assert_debug(_type in cls.__members__,
                      f"Unknown type `{_type}`. Existing members are : {cls.__members__.keys()}")

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 
-from slam.common.utils import assert_debug, check_sizes
+from slam.common.utils import assert_debug, check_tensor
 from slam.common.io import poses_to_df, delimiter
 
 
@@ -34,8 +34,9 @@ def draw_trajectory_files(xs: list, ys: list,
         The font size of the legend
 
     """
+    plt.ioff()
     sns.set_theme(style="darkgrid")
-    fig = plt.figure(figsize=figsize if figsize is not None else (10., 10.), dpi=100, clear=True)
+    fig = plt.figure(figsize=figsize if figsize is not None else (10., 10.), dpi=1000, clear=True)
 
     matplotlib.rcParams.update({'font.size': font_size})
     plt.rc('font', size=font_size)
@@ -47,30 +48,20 @@ def draw_trajectory_files(xs: list, ys: list,
     plt.rc('legend', fontsize=font_size)
     plt.rc('legend', title_fontsize=font_size)
 
-    _labels = []
-    _xs = []
-    _ys = []
-
-    for i, (x, y) in enumerate(zip(xs, ys)):
-        _xs.append(x.reshape(-1, 1))
-        _ys.append(y.reshape(-1, 1))
-        s = pd.Series([i if labels is None else labels[i]]).repeat(x.shape[0])
-        _labels.append(s)
-    _xs = np.concatenate(_xs, axis=0)
-    _ys = np.concatenate(_ys, axis=0)
-    df = pd.DataFrame(np.concatenate([_xs, _ys], axis=1), columns=["x[m]", "y[m]"])
-    _labels = pd.concat(_labels, ignore_index=True)
-    df["Trajectory"] = _labels
-
     axes = plt.gca()
-    sns.lineplot(x="x[m]", y="y[m]", sort=False, data=df, hue="Trajectory", lw=4,
-                 palette="tab10" if palette is None else palette, axes=axes)
-    plt.axis("equal")
 
-    leg = axes.legend()
+    color_palette = sns.color_palette(palette="tab10" if palette is None else palette, n_colors=len(xs), as_cmap=True)
+    for i, (x, y) in enumerate(zip(xs, ys)):
+        axes.plot(x, y, linewidth=4, label=labels[i], color=color_palette.colors[i])
+
+    axes.set_xlabel("x[m]")
+    axes.set_ylabel("y[m]")
+
+    leg = axes.legend(loc="lower left")
     for line in leg.get_lines():
         line.set_linewidth(4.0)
 
+    plt.axis("equal")
     fig.set_dpi(100)
     plt.savefig(output_file)
     plt.close(fig)
@@ -178,8 +169,8 @@ def calcSequenceErrors(trajectory, ground_truth, all_segments=__default_segments
     return errors
 
 
-def compute_kitti_metrics(trajectory, ground_truth) -> tuple:
-    errors = calcSequenceErrors(trajectory, ground_truth)
+def compute_kitti_metrics(trajectory, ground_truth, segments_sizes=__default_segments) -> tuple:
+    errors = calcSequenceErrors(trajectory, ground_truth, segments_sizes)
 
     if len(errors) > 0:
         # Compute averaged errors
@@ -211,8 +202,8 @@ def compute_are(relative_trajectory, relative_ground_truth) -> (float, float):
 
 
 def rescale_prediction(sequence_pred: np.ndarray, sequence_gt: np.ndarray) -> np.ndarray:
-    check_sizes(sequence_pred, [-1, 4, 4])
-    check_sizes(sequence_gt, [-1, 4, 4])
+    check_tensor(sequence_pred, [-1, 4, 4])
+    check_tensor(sequence_gt, [-1, 4, 4])
     rescaled_pred = []
     for i in range(len(sequence_pred)):
         poses_pred = sequence_pred[i]

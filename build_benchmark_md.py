@@ -1,5 +1,5 @@
 """
-This script builds a `nhcd_benchmark.md` file which aggregates the results saved on disk.
+This script builds a `<dataset>_benchmark.md` file which aggregates the results saved on disk.
 
 It searches for recursively for all results in a root directory, computes the trajectory error, ranks the results,
 And display writes the `nhcd_benchmark.md` files which contains the table aggregating all the results.
@@ -10,14 +10,10 @@ If many trajectories need to be evaluated, this script can take a long time.
 import sys
 import os
 from dataclasses import dataclass
-import logging
-from pathlib import Path
-import yaml
 
 import hydra
 from hydra.core.config_store import ConfigStore
 
-from slam.common.utils import assert_debug
 from slam.common.io import *
 from slam.eval.eval_odometry import *
 
@@ -65,6 +61,10 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
     metrics = {}  # map root_path -> computed metrics
     # Recursively search all child directories for folder with the appropriate name
     directory_list = [x[0] for x in os.walk(root_dir)]  # Absolute paths
+
+    output_root = Path(cfg.output_dir)
+    if not output_root.exists():
+        output_root.mkdir()
 
     for new_dir in directory_list:
 
@@ -176,10 +176,6 @@ def build_benchmark(cfg: BenchmarkBuilderConfig) -> None:
 
         command_lines.append(
             f"| {path_link} |  {_metrics['command'] if 'command' in _metrics else ''}   | {_metrics['git_hash'] if 'git_hash' in _metrics else ''}|\n")
-
-    output_root = Path(cfg.output_dir)
-    if not output_root.exists():
-        output_root.mkdir()
 
     output_file = str(output_root / f"{dataset_name}_benchmark.md")
     with open(output_file, "w") as stream:

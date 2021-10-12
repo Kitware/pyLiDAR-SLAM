@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 # Project Imports
-from slam.common.utils import assert_debug, check_sizes
+from slam.common.utils import assert_debug, check_tensor
 
 
 def delimiter():
@@ -23,13 +23,13 @@ def write_poses_to_disk(file_path: str, poses: np.ndarray):
     file_path : str
     poses : np.ndarray [N, 4, 4]
     """
-    check_sizes(poses, [-1, 4, 4])
+    check_tensor(poses, [-1, 4, 4])
     path = Path(file_path)
     assert_debug(path.parent.exists())
     poses_to_df(poses).to_csv(file_path, sep=delimiter(), index=False)
 
 
-def read_poses_from_disk(file_path: str) -> np.ndarray:
+def read_poses_from_disk(file_path: str, _delimiter: str = delimiter()) -> np.ndarray:
     """
     Reads an array of poses from disk
 
@@ -39,7 +39,7 @@ def read_poses_from_disk(file_path: str) -> np.ndarray:
     """
     path = Path(file_path)
     assert_debug(path.exists() and path.is_file())
-    return df_to_poses(pd.read_csv(path, sep=delimiter(), index_col=None))
+    return df_to_poses(pd.read_csv(path, sep=_delimiter, index_col=None))
 
 
 def df_to_poses(df: pd.DataFrame) -> np.ndarray:

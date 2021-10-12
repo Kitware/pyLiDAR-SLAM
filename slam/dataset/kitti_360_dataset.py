@@ -135,6 +135,38 @@ class KITTI360Sequence(Dataset):
     def __len__(self):
         return self.size
 
+    @staticmethod
+    def _correct_scan(scan: np.ndarray):
+        """
+        Corrects the calibration of KITTI's HDL-64 scan
+        """
+        xyz = scan[:, :3]
+        n = scan.shape[0]
+        z = np.tile(np.array([[0, 0, 1]], dtype=np.float32), (n, 1))
+        axes = np.cross(xyz, z)
+        # Normalize the axes
+        axes /= np.linalg.norm(axes, axis=1, keepdims=True)
+        theta = 0.205 * np.pi / 180.0
+
+        # Build the rotation matrix for each point
+        c = np.cos(theta)
+        s = np.sin(theta)
+
+        u_outer = axes.reshape(n, 3, 1) * axes.reshape(n, 1, 3)
+        u_cross = np.zeros((n, 3, 3), dtype=np.float32)
+        u_cross[:, 0, 1] = -axes[:, 2]
+        u_cross[:, 1, 0] = axes[:, 2]
+        u_cross[:, 0, 2] = axes[:, 1]
+        u_cross[:, 2, 0] = -axes[:, 1]
+        u_cross[:, 1, 2] = -axes[:, 0]
+        u_cross[:, 2, 1] = axes[:, 0]
+
+        eye = np.tile(np.eye(3, dtype=np.float32), (n, 1, 1))
+        rotations = c * eye + s * u_cross + (1 - c) * u_outer
+        corrected_scan = np.einsum("nij,nj->ni", rotations, xyz)
+
+        return corrected_scan
+
     def __getitem__(self, idx) -> dict:
         """
         Returns:

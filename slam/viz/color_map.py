@@ -33,6 +33,8 @@ def opencv_rainbow(resolution=1000):
 
 
 COLORMAPS = {'rainbow': opencv_rainbow(),
+             "jet": high_res_colormap(cm.get_cmap("jet")),
+             "viridis": high_res_colormap(cm.get_cmap("viridis")),
              'magma': high_res_colormap(cm.get_cmap('magma')),
              'bone': cm.get_cmap('bone', 10000)}
 

@@ -21,12 +21,17 @@ from hydra.conf import dataclass, MISSING, field
 # Project Imports
 from slam.common.pose import Pose
 from slam.common.torch_utils import collate_fun
-from slam.common.utils import check_sizes, assert_debug, get_git_hash
+from slam.common.utils import check_tensor, assert_debug, get_git_hash
 from slam.dataset import DatasetLoader, DATASET
 from slam.eval.eval_odometry import OdometryResults
 from slam.dataset.configuration import DatasetConfig
 
 from slam.slam import SLAMConfig, SLAM
+
+from slam.viz import _with_cv2
+
+if _with_cv2:
+    import cv2
 
 
 @dataclass
@@ -40,6 +45,7 @@ class SLAMRunnerConfig:
 
     # ------------------
     # Default parameters
+    max_num_frames: int = -1  # The maximum number of frames to run on
     log_dir: str = field(default_factory=os.getcwd)
     num_workers: int = 2
     pin_memory: bool = True
@@ -53,6 +59,7 @@ class SLAMRunnerConfig:
     # Debug parameters
     viz_num_pointclouds: int = 200
     debug: bool = True
+    save_results: bool = True
 
 
 # -------------
@@ -145,7 +152,8 @@ class SLAMRunner(ABC):
 
             # Load/Init the SLAM
             slam = self.load_slam_algorithm()
-            self.save_config()
+            if self.config.save_results:
+                self.save_config()
             slam.init()
 
             elapsed = 0.0
@@ -169,6 +177,9 @@ class SLAMRunner(ABC):
                     # Measure the time spent on the processing of the next frame
                     elapsed_sec = time.time() - start
                     elapsed += elapsed_sec
+
+                    if 0 < self.config.max_num_frames <= b_idx:
+                        break
             except KeyboardInterrupt:
                 catch_exception()
                 raise
@@ -176,19 +187,21 @@ class SLAMRunner(ABC):
                 catch_exception()
                 raise e
 
-            # Dump trajectory constraints in case of loop closure
-            slam.dump_all_constraints(str(Path(self.log_dir) / sequence_name))
+            if self.config.save_results:
+                # Dump trajectory constraints in case of loop closure
+                slam.dump_all_constraints(str(Path(self.log_dir) / sequence_name))
 
             # Evaluate the SLAM if it has a ground truth
             relative_poses = slam.get_relative_poses()
-            check_sizes(relative_poses, [-1, 4, 4])
+            check_tensor(relative_poses, [-1, 4, 4])
             if relative_ground_truth is not None:
-                check_sizes(relative_ground_truth, [relative_poses.shape[0], 4, 4])
+                check_tensor(relative_ground_truth, [relative_poses.shape[0], 4, 4])
 
             del slam
             del dataloader
 
-            self.save_and_evaluate(sequence_name, relative_poses, relative_ground_truth, elapsed=elapsed)
+            if self.config.save_results:
+                self.save_and_evaluate(sequence_name, relative_poses, relative_ground_truth, elapsed=elapsed)
 
     def save_and_evaluate(self, sequence_name: str,
                           trajectory: np.ndarray,

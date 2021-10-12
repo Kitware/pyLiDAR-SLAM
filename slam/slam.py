@@ -162,7 +162,9 @@ class SLAM:
             init_step = time.time()
             self.backend.next_frame(data_dict)
             step_backend = time.time()
-
+            if self.backend.need_to_update_pose:
+                self.loop_closure.update_positions(self.backend.absolute_poses())
+                self.backend.need_to_update_pose = False
             self.elapsed_backend.append(step_backend - init_step)
 
         self._frame_idx += 1
